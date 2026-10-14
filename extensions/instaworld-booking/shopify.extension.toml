@@ -1,16 +1,20 @@
 api_version = "2026-10"
 
 [[extensions]]
-# Change the merchant-facing name of the extension in locales/en.default.json
 name = "t:name"
 handle = "instaworld-booking"
 type = "ui_extension"
 uid = "8b7c915f-602e-06f3-2b78-c962b7f491070a407bf5"
 
-# Only 1 target can be specified for each Admin action extension
 [[extensions.targeting]]
 module = "./src/ActionExtension.jsx"
 target = "admin.order-details.action.render"
+
+[[extensions]]
+name = "InstaWorld Bulk Book"
+handle = "instaworld-bulk-book"
+type = "ui_extension"
+uid = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 
 [[extensions.targeting]]
 module = "./src/BulkBookExtension.jsx"
