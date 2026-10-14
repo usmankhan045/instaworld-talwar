@@ -23,11 +23,7 @@ export type ShopifyOrder = {
   displayFinancialStatus: string | null;
   totalPrice: Money;
   totalOutstanding: Money | null;
-  customer: {
-    id: string | null;
-    name: string;
-    email: string | null;
-  } | null;
+  customer: null;
   shippingAddress: {
     name: string | null;
     phone: string | null;
@@ -72,12 +68,6 @@ const ORDER_FIELDS = `
       amount
       currencyCode
     }
-  }
-  customer {
-    id
-    firstName
-    lastName
-    email
   }
   shippingAddress {
     name
@@ -149,16 +139,7 @@ function parseOrder(node: any): ShopifyOrder {
     totalOutstanding: node.totalOutstandingSet
       ? shopMoney(node.totalOutstandingSet)
       : null,
-    customer: node.customer
-      ? {
-          id: node.customer.id ?? null,
-          name: [node.customer.firstName, node.customer.lastName]
-            .filter(Boolean)
-            .join(" ")
-            .trim(),
-          email: node.customer.email ?? null,
-        }
-      : null,
+    customer: null,
     shippingAddress: node.shippingAddress
       ? {
           name: node.shippingAddress.name ?? null,
