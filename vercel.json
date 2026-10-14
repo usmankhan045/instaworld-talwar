@@ -4,5 +4,8 @@
       "path": "/api/instaworld-sync",
       "schedule": "*/15 * * * *"
     }
-  ]
+  ],
+  "deployment": {
+    "triggered": "2026-10-15T00:00:00Z"
+  }
 }
