@@ -12,6 +12,10 @@ uid = "8b7c915f-602e-06f3-2b78-c962b7f491070a407bf5"
 module = "./src/ActionExtension.jsx"
 target = "admin.order-details.action.render"
 
+[[extensions.targeting]]
+module = "./src/BulkBookExtension.jsx"
+target = "admin.order-index.selection-action.render"
+
 
 # Valid extension targets:
 
