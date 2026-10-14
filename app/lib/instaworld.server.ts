@@ -295,5 +295,3 @@ export function isContractConfirmed() {
   return true;
 }
 
-// Re-export helpers so booking.server.ts can use them
-export {normalisePhone, normaliseCity, truncate};
