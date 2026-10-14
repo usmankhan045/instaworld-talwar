@@ -42,8 +42,17 @@ function jsonResp(data: unknown, status = 200) {
 function isAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
   if (!secret) return true; // No secret configured — allow (dev mode)
+  
+  // Vercel/Bearer token auth
   const auth = request.headers.get("Authorization");
-  return auth === `Bearer ${secret}`;
+  if (auth === `Bearer ${secret}`) return true;
+  
+  // GitHub Actions auth
+  const githubToken = request.headers.get("X-GitHub-Token");
+  const repoToken = process.env.ACTIONS_GITHUB_TOKEN;
+  if (githubToken && repoToken && githubToken === repoToken) return true;
+  
+  return false;
 }
 
 async function fetchInstaWorldShipments(updatedSince: Date): Promise<any[]> {
