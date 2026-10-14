@@ -15,8 +15,15 @@ if (
   delete process.env.HOST;
 }
 
-const host = new URL(process.env.SHOPIFY_APP_URL || "http://localhost")
-  .hostname;
+function normalizeAppUrl(value: string | undefined) {
+  if (!value) return "http://localhost";
+  if (/^[a-z][a-z\d+\-.]*:\/\//i.test(value)) return value;
+  return `https://${value}`;
+}
+
+const appUrl = normalizeAppUrl(process.env.SHOPIFY_APP_URL);
+process.env.SHOPIFY_APP_URL = appUrl;
+const host = new URL(appUrl).hostname;
 
 let hmrConfig;
 if (host === "localhost") {
