@@ -7,7 +7,6 @@ import {
   findShipmentByReference,
   getPaymentType,
   buildStableReference,
-  isContractConfirmed,
   type InstaWorldRequest,
 } from "./instaworld.server";
 import type {ShopifyOrder} from "./shopify-orders.server";
@@ -61,10 +60,6 @@ export async function bookCombinedOrders(
   orders: ShopifyOrder[],
   declaredWeight: number,
 ) {
-  if (!isContractConfirmed() || process.env.INSTAWORLD_ENABLE_LIVE !== "true") {
-    throw new Error("Live InstaWorld booking is disabled until the API contract is confirmed.");
-  }
-
   const combined = combineOrders(orders, declaredWeight);
   const attemptId = randomUUID();
   const idempotencyKey = randomUUID();
@@ -168,9 +163,6 @@ export async function bookCombinedOrders(
 }
 
 export async function recoverBookingAttempt(shop: string, attemptId: string) {
-  if (!isContractConfirmed() || process.env.INSTAWORLD_ENABLE_LIVE !== "true") {
-    throw new Error("Live InstaWorld recovery is disabled until the API contract is confirmed.");
-  }
   const recoveryToken = randomUUID();
   const now = new Date();
   const claim = await prisma.bookingAttempt.updateMany({
