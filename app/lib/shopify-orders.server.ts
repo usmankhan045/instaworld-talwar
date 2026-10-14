@@ -21,7 +21,6 @@ export type ShopifyOrder = {
   createdAt: string;
   cancelledAt: string | null;
   displayFinancialStatus: string | null;
-  paymentStatus: string | null;
   totalPrice: Money;
   totalOutstanding: Money | null;
   customer: {
@@ -62,7 +61,6 @@ const ORDER_FIELDS = `
   createdAt
   cancelledAt
   displayFinancialStatus
-  paymentStatus
   totalPriceSet {
     shopMoney {
       amount
@@ -147,7 +145,6 @@ function parseOrder(node: any): ShopifyOrder {
     createdAt: String(node.createdAt),
     cancelledAt: node.cancelledAt ?? null,
     displayFinancialStatus: node.displayFinancialStatus ?? null,
-    paymentStatus: node.paymentStatus ?? null,
     totalPrice: shopMoney(node.totalPriceSet),
     totalOutstanding: node.totalOutstandingSet
       ? shopMoney(node.totalOutstandingSet)
