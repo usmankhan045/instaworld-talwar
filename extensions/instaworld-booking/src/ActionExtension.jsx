@@ -58,6 +58,7 @@ function Extension() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [cityWarning, setCityWarning] = useState("");
 
   useEffect(() => {
     if (!currentOrderId) {
@@ -90,6 +91,7 @@ function Extension() {
       setSelectedOrders(payload.combined.orders || []);
       setCombined(payload.combined);
       setDeclaredWeight(String(payload.combined.defaultWeight));
+      setCityWarning(payload.cityWarning || "");
     } catch (previewError) {
       setError(previewError instanceof Error ? previewError.message : "Unable to validate orders.");
       setCombined(null);
@@ -241,6 +243,7 @@ function Extension() {
           </>
         )}
 
+        {cityWarning && <s-banner tone="warning">{cityWarning}</s-banner>}
         {error && <s-banner tone="critical">{error}</s-banner>}
         {message && <s-banner tone="success">{message}</s-banner>}
       </s-stack>
