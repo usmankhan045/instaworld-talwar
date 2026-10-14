@@ -108,10 +108,6 @@ export async function action({ request }: ActionFunctionArgs) {
       );
     }
 
-    if (orderIds.length === 1) {
-      return json({ orders });
-    }
-
     stage = "order combination";
     const combined = combineOrders(orders);
     return json({ combined });

@@ -93,10 +93,6 @@ export function combineOrders(
     0,
   ),
 ): CombinedOrder {
-  if (orders.length < 2) {
-    throw new Error("At least two orders are required for a combined shipment.");
-  }
-
   if (orders.some((order) => order.cancelledAt)) {
     throw new Error("Cancelled orders cannot be combined.");
   }

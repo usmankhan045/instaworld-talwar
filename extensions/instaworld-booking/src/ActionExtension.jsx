@@ -136,8 +136,8 @@ function Extension() {
 
   async function bookShipment() {
     const numericWeight = Number(declaredWeight);
-    if (selectedOrderIds.length < 2) {
-      setError("Select at least one additional compatible order.");
+    if (selectedOrderIds.length < 1) {
+      setError("No order selected.");
       return;
     }
     if (!Number.isFinite(numericWeight) || numericWeight <= 0) {
@@ -172,7 +172,7 @@ function Extension() {
       <s-stack direction="block" gap="base">
         <s-text type="strong">Confirm &amp; Book InstaWorld</s-text>
         <s-text>
-          Select two or more compatible orders. No shipment is created until you confirm.
+          Select one or more compatible orders. No shipment is created until you confirm.
         </s-text>
 
         <s-stack direction="inline" gap="base">
@@ -249,7 +249,7 @@ function Extension() {
         slot="primary-action"
         onClick={bookShipment}
         loading={submitting}
-        disabled={submitting || loading || selectedOrderIds.length < 2 || !combined}
+        disabled={submitting || loading || selectedOrderIds.length < 1 || !combined}
       >
         {submitting ? "Booking…" : "Confirm & Book InstaWorld"}
       </s-button>

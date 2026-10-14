@@ -79,7 +79,7 @@ export async function action({request}: ActionFunctionArgs) {
     : [];
   const declaredWeight = Number(body?.declaredWeight);
 
-  if (orderIds.length < 2 || new Set(orderIds).size !== orderIds.length) {
+  if (orderIds.length < 1 || new Set(orderIds).size !== orderIds.length) {
     return json({message: "Select at least two different orders."}, {status: 400});
   }
   if (!Number.isFinite(declaredWeight) || declaredWeight <= 0) {
