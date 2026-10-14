@@ -79,11 +79,11 @@ For more information on the Shopify Dev MCP please read [the documentation](http
 
 ### Application Storage
 
-This template uses [Prisma](https://www.prisma.io/) to store session data, by default using an [SQLite](https://www.sqlite.org/index.html) database.
-The database is defined as a Prisma schema in `prisma/schema.prisma`.
-
-This use of SQLite works in production if your app runs as a single instance.
-The database that works best for you depends on the data your app needs and how it is queried.
+This app uses [Prisma](https://www.prisma.io/) with PostgreSQL to store Shopify
+sessions and shipment state. The production database is Neon PostgreSQL. Set
+`DATABASE_URL` to the pooled Neon connection string and `DIRECT_DATABASE_URL`
+to the direct Neon connection string used by Prisma migrations. Keep both
+values in Vercel environment settings; never commit them.
 Here’s a short list of databases providers that provide a free tier to get started:
 
 | Database   | Type             | Hosters                                                                                                                                                                                                                                    |
@@ -93,7 +93,16 @@ Here’s a short list of databases providers that provide a free tier to get sta
 | Redis      | Key-value        | [Digital Ocean](https://www.digitalocean.com/products/managed-databases-redis), [Amazon MemoryDB](https://aws.amazon.com/memorydb/)                                                                                                        |
 | MongoDB    | NoSQL / Document | [Digital Ocean](https://www.digitalocean.com/products/managed-databases-mongodb), [MongoDB Atlas](https://www.mongodb.com/atlas/database)                                                                                                  |
 
-To use one of these, you can use a different [datasource provider](https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#datasource) in your `schema.prisma` file, or a different [SessionStorage adapter package](https://github.com/Shopify/shopify-api-js/blob/main/packages/shopify-api/docs/guides/session-storage.md).
+The existing `PrismaSessionStorage` adapter uses the same Prisma client and
+therefore uses this PostgreSQL database for Shopify sessions without any
+additional Shopify storage adapter.
+
+The original SQLite migrations are preserved under
+`prisma/migrations-sqlite-legacy/` for historical reference. The active
+`prisma/migrations/` directory contains the PostgreSQL baseline. Applying that
+baseline to a new Neon database creates all current models without deleting
+the legacy migration history. Existing SQLite data requires a separately
+verified export/import procedure; this change does not run that procedure.
 
 ### Build
 
