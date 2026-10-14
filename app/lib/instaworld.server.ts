@@ -160,7 +160,7 @@ export function normaliseCity(raw: string | null | undefined): string {
 /**
  * Truncate a string to a max byte/char length, trimming at a word boundary.
  */
-function truncate(value: string, max: number): string {
+export function truncate(value: string, max: number): string {
   if (value.length <= max) return value;
   return value.slice(0, max).replace(/\s+\S*$/, "").trim() || value.slice(0, max).trim();
 }
