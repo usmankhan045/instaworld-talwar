@@ -1,6 +1,14 @@
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import type { AdminApiContext } from "@shopify/shopify-app-react-router/server";
+type ShopifyAdminGraphql = {
+  graphql: (
+    query: string,
+    options?: { variables?: Record<string, unknown> },
+  ) => Promise<{
+    json: () => Promise<unknown>;
+  }>;
+};
 
 export type Money = {
   amount: string;
@@ -45,22 +53,45 @@ export type ShopifyOrder = {
 
 type GraphqlResponse<T> = {
   data?: T;
-  errors?: Array<{message: string}>;
+  errors?: Array<{ message: string }>;
 };
 
 const ORDER_FIELDS = `
   id
   name
-  orderNumber
   createdAt
   cancelledAt
   displayFinancialStatus
   paymentStatus
-  totalPriceSet { shopMoney { amount currencyCode } }
-  totalOutstandingSet { shopMoney { amount currencyCode } }
-  customer { id firstName lastName email }
+  totalPriceSet {
+    shopMoney {
+      amount
+      currencyCode
+    }
+  }
+  totalOutstandingSet {
+    shopMoney {
+      amount
+      currencyCode
+    }
+  }
+  customer {
+    id
+    firstName
+    lastName
+    email
+  }
   shippingAddress {
-    name phone address1 address2 city province provinceCode zip country countryCodeV2
+    name
+    phone
+    address1
+    address2
+    city
+    province
+    provinceCode
+    zip
+    country
+    countryCodeV2
   }
   lineItems(first: 250) {
     edges {
@@ -69,8 +100,18 @@ const ORDER_FIELDS = `
         title
         sku
         quantity
-        originalUnitPriceSet { shopMoney { amount currencyCode } }
-        discountedTotalSet { shopMoney { amount currencyCode } }
+        originalUnitPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        discountedTotalSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
       }
     }
   }
@@ -78,16 +119,20 @@ const ORDER_FIELDS = `
 
 function assertGraphqlSuccess<T>(result: GraphqlResponse<T>): T {
   if (result.errors?.length) {
-    throw new Error(result.errors.map((error) => error.message).join("; "));
+    throw new Error(
+      result.errors.map((error) => error.message).join("; "),
+    );
   }
+
   if (!result.data) {
     throw new Error("Shopify returned no data.");
   }
+
   return result.data;
 }
 
 function parseOrder(node: any): ShopifyOrder {
-  if (!node?.id || !node.orderNumber) {
+  if (!node?.id || !node.name) {
     throw new Error("Shopify returned an incomplete order.");
   }
 
@@ -97,14 +142,16 @@ function parseOrder(node: any): ShopifyOrder {
   });
 
   return {
-    id: node.id,
-    orderNumber: String(node.orderNumber),
+    id: String(node.id),
+    orderNumber: String(node.name).replace(/^#/, ""),
     createdAt: String(node.createdAt),
     cancelledAt: node.cancelledAt ?? null,
     displayFinancialStatus: node.displayFinancialStatus ?? null,
     paymentStatus: node.paymentStatus ?? null,
     totalPrice: shopMoney(node.totalPriceSet),
-    totalOutstanding: node.totalOutstandingSet ? shopMoney(node.totalOutstandingSet) : null,
+    totalOutstanding: node.totalOutstandingSet
+      ? shopMoney(node.totalOutstandingSet)
+      : null,
     customer: node.customer
       ? {
           id: node.customer.id ?? null,
@@ -129,62 +176,92 @@ function parseOrder(node: any): ShopifyOrder {
           countryCode: node.shippingAddress.countryCodeV2 ?? null,
         }
       : null,
-    lineItems: (node.lineItems?.edges ?? []).map(({node: item}: any) => ({
-      id: String(item.id),
-      title: String(item.title || "Product"),
-      sku: item.sku ?? null,
-      quantity: Number(item.quantity),
-      unitPrice: shopMoney(item.originalUnitPriceSet),
-      totalPrice: shopMoney(item.discountedTotalSet),
-    })),
+    lineItems: (node.lineItems?.edges ?? []).map(
+      ({ node: item }: any) => ({
+        id: String(item.id),
+        title: String(item.title || "Product"),
+        sku: item.sku ?? null,
+        quantity: Number(item.quantity),
+        unitPrice: shopMoney(item.originalUnitPriceSet),
+        totalPrice: shopMoney(item.discountedTotalSet),
+      }),
+    ),
   };
 }
 
 export async function getShopifyOrders(
-  admin: AdminApiContext,
+  admin: ShopifyAdminGraphql,
   orderIds: string[],
 ): Promise<ShopifyOrder[]> {
   const result = await admin.graphql(
     `#graphql
       query OrdersById($ids: [ID!]!) {
         nodes(ids: $ids) {
-          ... on Order { ${ORDER_FIELDS} }
+          ... on Order {
+            ${ORDER_FIELDS}
+          }
         }
       }
     `,
-    {variables: {ids: orderIds}},
+    { variables: { ids: orderIds } },
   );
-  const data = assertGraphqlSuccess(await result.json() as GraphqlResponse<{nodes: any[]}>);
+
+  const data = assertGraphqlSuccess(
+    (await result.json()) as GraphqlResponse<{ nodes: any[] }>,
+  );
+
   const nodes = data.nodes.filter(Boolean);
+
   if (nodes.length !== orderIds.length) {
-    throw new Error("One or more selected Shopify orders could not be found.");
+    throw new Error(
+      "One or more selected Shopify orders could not be found.",
+    );
   }
+
   return nodes.map(parseOrder);
 }
 
 export async function searchShopifyOrders(
-  admin: AdminApiContext,
+  admin: ShopifyAdminGraphql,
   search: string,
-): Promise<Array<Pick<ShopifyOrder, "id" | "orderNumber" | "createdAt" | "cancelledAt">>> {
+): Promise<
+  Array<
+    Pick<
+      ShopifyOrder,
+      "id" | "orderNumber" | "createdAt" | "cancelledAt"
+    >
+  >
+> {
   const result = await admin.graphql(
     `#graphql
       query SearchOrders($query: String!) {
-        orders(first: 25, query: $query, sortKey: CREATED_AT, reverse: true) {
+        orders(
+          first: 25,
+          query: $query,
+          sortKey: CREATED_AT,
+          reverse: true
+        ) {
           nodes {
             id
-            orderNumber
+            name
             createdAt
             cancelledAt
           }
         }
       }
     `,
-    {variables: {query: search.trim()}},
+    { variables: { query: search.trim() } },
   );
-  const data = assertGraphqlSuccess(await result.json() as GraphqlResponse<{orders: {nodes: any[]}}>);
+
+  const data = assertGraphqlSuccess(
+    (await result.json()) as GraphqlResponse<{
+      orders: { nodes: any[] };
+    }>,
+  );
+
   return data.orders.nodes.map((order) => ({
     id: String(order.id),
-    orderNumber: String(order.orderNumber),
+    orderNumber: String(order.name).replace(/^#/, ""),
     createdAt: String(order.createdAt),
     cancelledAt: order.cancelledAt ?? null,
   }));
