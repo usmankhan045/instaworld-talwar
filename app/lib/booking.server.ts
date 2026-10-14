@@ -7,6 +7,9 @@ import {
   findShipmentByReference,
   getPaymentType,
   buildStableReference,
+  normalisePhone,
+  normaliseCity,
+  truncate,
   type InstaWorldRequest,
 } from "./instaworld.server";
 import type {ShopifyOrder} from "./shopify-orders.server";
@@ -20,12 +23,27 @@ function fingerprint(orders: ShopifyOrder[], declaredWeight: number) {
   });
 }
 
-function addressText(order: ShopifyOrder) {
-  const address = order.shippingAddress;
-  if (!address) throw new Error(`Order #${order.orderNumber} has no shipping address.`);
-  return [address.address1, address.address2, address.city, address.province, address.zip, address.country]
+function addressText(order: ShopifyOrder): string {
+  const a = order.shippingAddress;
+  if (!a) throw new Error(`Order #${order.orderNumber} has no shipping address.`);
+  // Truncate to 200 chars (InstaWorld spec maxLength: 200)
+  const full = [a.address1, a.address2, a.city, a.province, a.zip, a.country]
     .filter(Boolean)
     .join(", ");
+  return truncate(full, 200);
+}
+
+/**
+ * Pick the best available phone number across the primary order's shipping
+ * address and all other combined orders' shipping addresses.
+ * Normalises to Pakistani format before returning.
+ */
+function pickPhone(orders: ShopifyOrder[]): string {
+  for (const order of orders) {
+    const phone = order.shippingAddress?.phone;
+    if (phone) return normalisePhone(phone);
+  }
+  return "";
 }
 
 function splitName(full: string): {first_name: string; last_name?: string} {
@@ -42,6 +60,13 @@ function buildRequest(
 ): InstaWorldRequest {
   const consigneeName = combined.consignee.name || "";
   const {first_name, last_name} = splitName(consigneeName);
+
+  // Phone: use consignee phone first, then fall back across all orders
+  const phone = normalisePhone(combined.consignee.phone) || pickPhone(orders);
+
+  // City: normalise + alias map
+  const city = normaliseCity(combined.consignee.city);
+
   return {
     refNo,
     locationId: Number(process.env.INSTAWORLD_LOCATION_ID || 16917),
@@ -51,17 +76,16 @@ function buildRequest(
     },
     consignee: {
       first_name,
-      last_name,
-      phone: combined.consignee.phone || "",
-      city: (combined.consignee.city || "").toUpperCase(),
+      ...(last_name ? {last_name} : {}),
+      phone,
+      city,
       address: addressText(orders[0]),
     },
     items: combined.items.map((item) => ({
-      title: item.title,
-      sku: item.sku,
+      title: item.title ? truncate(item.title, 100) : undefined,
+      sku: item.sku ?? undefined,
       quantity: item.quantity,
-      kg: item.quantity * 0.8,
-      price: undefined,
+      kg: Math.round(item.quantity * 0.8 * 100) / 100,
     })),
   };
 }

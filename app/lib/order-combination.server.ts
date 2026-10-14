@@ -37,33 +37,52 @@ function normalizedPhone(value: string | null | undefined) {
 }
 
 function getPayment(order: ShopifyOrder): PaymentSummary {
-  if (!order.totalOutstanding) {
-    throw new Error(`Order #${order.orderNumber} has no reliable outstanding amount.`);
+  const paymentStatus = normalized(order.displayFinancialStatus);
+
+  // Fully paid / refunded → prepaid, no COD to collect
+  if (["paid", "refunded", "partially_refunded"].includes(paymentStatus)) {
+    const currencyCode = order.totalOutstanding?.currencyCode || order.totalPrice.currencyCode;
+    return {treatment: "prepaid", amountDue: 0, currencyCode};
   }
 
-  const amountDue = Number(order.totalOutstanding.amount);
-  if (!Number.isFinite(amountDue) || amountDue < 0) {
-    throw new Error(`Order #${order.orderNumber} has an invalid outstanding amount.`);
+  // Outstanding amount available → use it
+  if (order.totalOutstanding) {
+    const amountDue = Number(order.totalOutstanding.amount);
+    const currencyCode = order.totalOutstanding.currencyCode;
+
+    if (!Number.isFinite(amountDue) || amountDue < 0) {
+      throw new Error(`Order #${order.orderNumber} has an invalid outstanding amount.`);
+    }
+    if (!currencyCode) {
+      throw new Error(`Order #${order.orderNumber} has no currency for its outstanding amount.`);
+    }
+    if (amountDue > 0) {
+      const codStates = ["pending", "partially_paid", "authorized", "partially_refunded"];
+      if (!codStates.includes(paymentStatus)) {
+        throw new Error(
+          `Order #${order.orderNumber} has an unsupported financial state: ${order.displayFinancialStatus ?? "unknown"}.`,
+        );
+      }
+      return {treatment: "cod", amountDue, currencyCode};
+    }
+    // amountDue === 0 but not "paid" — fully discounted, treat as prepaid
+    return {treatment: "prepaid", amountDue: 0, currencyCode};
   }
 
-  const currencyCode = order.totalOutstanding.currencyCode;
-  if (!currencyCode) {
-    throw new Error(`Order #${order.orderNumber} has no currency for its outstanding amount.`);
-  }
-
-  const paymentStatus = normalized(order.paymentStatus || order.displayFinancialStatus);
-  if (amountDue > 0) {
-    if (!["pending", "partially_paid", "authorized", "partially_refunded"].includes(paymentStatus)) {
-      throw new Error(`Order #${order.orderNumber} has an unsupported COD financial state.`);
+  // totalOutstanding is null — fall back to totalPrice for COD states
+  const codFallbackStates = ["pending", "authorized", "partially_paid"];
+  if (codFallbackStates.includes(paymentStatus)) {
+    const amountDue = Number(order.totalPrice.amount);
+    const currencyCode = order.totalPrice.currencyCode;
+    if (!Number.isFinite(amountDue) || amountDue <= 0 || !currencyCode) {
+      throw new Error(`Order #${order.orderNumber} has no reliable amount for COD collection.`);
     }
     return {treatment: "cod", amountDue, currencyCode};
   }
 
-  if (["paid", "refunded", "partially_refunded"].includes(paymentStatus)) {
-    return {treatment: "prepaid", amountDue: 0, currencyCode};
-  }
-
-  throw new Error(`Order #${order.orderNumber} has an ambiguous payment state.`);
+  throw new Error(
+    `Order #${order.orderNumber} has an ambiguous payment state: ${order.displayFinancialStatus ?? "unknown"}.`,
+  );
 }
 
 export function combineOrders(

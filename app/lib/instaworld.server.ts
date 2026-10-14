@@ -6,10 +6,10 @@ export type InstaWorldShipment = {
 };
 
 /**
- * Internal request shape — matches the InstaWorld v2 CreateShipmentRequest schema exactly.
- * payment.type: "cod" | "paid"  (NOT "COD"/"PREPAID")
- * consignee: first_name (required), last_name (optional)
- * items: kg (not weight)
+ * Matches InstaWorld v2 CreateShipmentRequest schema exactly.
+ * payment.type: "cod" | "paid"
+ * consignee.first_name is required
+ * items use kg (not weight)
  */
 export type InstaWorldRequest = {
   refNo: string | null;
@@ -26,13 +26,155 @@ export type InstaWorldRequest = {
   items: Array<{title?: string; sku?: string | null; quantity: number; kg: number; price?: number}>;
 };
 
+// ---------------------------------------------------------------------------
+// Normalisation helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Normalise a Pakistani phone number to InstaWorld-accepted format.
+ * Accepts: 03001234567 | +923001234567 | 923001234567 | 3001234567
+ * Always outputs: 03001234567  (11 digits, leading 0)
+ * Falls back to the raw value if it cannot be parsed — InstaWorld will
+ * return a clear `invalid_phone` error in that case.
+ */
+export function normalisePhone(raw: string | null | undefined): string {
+  if (!raw) return "";
+  // Strip everything except digits and leading +
+  const stripped = raw.replace(/[^\d+]/g, "");
+
+  // Already in +92XXXXXXXXXX format → convert to 0XXXXXXXXXX
+  if (/^\+92\d{10}$/.test(stripped)) {
+    return "0" + stripped.slice(3);
+  }
+  // +92 with wrong digit count — keep + strip
+  if (stripped.startsWith("+92")) {
+    return "0" + stripped.slice(3);
+  }
+  // 92XXXXXXXXXX (no +) → 0XXXXXXXXXX
+  if (/^92\d{10}$/.test(stripped)) {
+    return "0" + stripped.slice(2);
+  }
+  // 03XXXXXXXXX — standard Pakistani format, keep as-is
+  if (/^0\d{10}$/.test(stripped)) {
+    return stripped;
+  }
+  // 3XXXXXXXXX (10 digits starting with 3) → prepend 0
+  if (/^3\d{9}$/.test(stripped)) {
+    return "0" + stripped;
+  }
+  // Unknown format — return raw digits; InstaWorld will surface the exact error
+  return stripped || raw.trim();
+}
+
+/**
+ * Normalise a city name to match InstaWorld's exact city list.
+ * InstaWorld cities are UPPERCASE e.g. LAHORE, KARACHI, RAHIM YAR KHAN.
+ * We also fix common alternate spellings used in Shopify shipping addresses.
+ */
+export function normaliseCity(raw: string | null | undefined): string {
+  if (!raw) return "";
+  let city = raw.trim().toUpperCase();
+
+  // Common alternate spellings / abbreviations seen in Pakistani Shopify stores
+  const aliases: Record<string, string> = {
+    "RAHIMYAR KHAN": "RAHIM YAR KHAN",
+    "RAHIM YAR KHAN": "RAHIM YAR KHAN",
+    "RYK": "RAHIM YAR KHAN",
+    "DGK": "DERA GHAZI KHAN",
+    "DERA GHAZI KHAN": "DERA GHAZI KHAN",
+    "D.G. KHAN": "DERA GHAZI KHAN",
+    "D G KHAN": "DERA GHAZI KHAN",
+    "DGIVKHAN": "DERA GHAZI KHAN",
+    "DERA ISMAIL KHAN": "DERA ISMAIL KHAN",
+    "D.I. KHAN": "DERA ISMAIL KHAN",
+    "DIK": "DERA ISMAIL KHAN",
+    "ISB": "ISLAMABAD",
+    "LHR": "LAHORE",
+    "KHI": "KARACHI",
+    "KHI.": "KARACHI",
+    "PEW": "PESHAWAR",
+    "PESH": "PESHAWAR",
+    "MULTAN CITY": "MULTAN",
+    "RAWALPINDI": "RAWALPINDI",
+    "RWP": "RAWALPINDI",
+    "PINDI": "RAWALPINDI",
+    "GUJRANWALA": "GUJRANWALA",
+    "GUJRAT": "GUJRAT",
+    "SIALKOT": "SIALKOT",
+    "FAISALABAD": "FAISALABAD",
+    "FSD": "FAISALABAD",
+    "BAHAWALPUR": "BAHAWALPUR",
+    "BWP": "BAHAWALPUR",
+    "SARGODHA": "SARGODHA",
+    "SAHIWAL": "SAHIWAL",
+    "SHEIKHUPURA": "SHEIKHUPURA",
+    "KASUR": "KASUR",
+    "OKARA": "OKARA",
+    "NAROWAL": "NAROWAL",
+    "HAFIZABAD": "HAFIZABAD",
+    "MANDI BAHAUDDIN": "MANDI BAHAUDDIN",
+    "M.B. DIN": "MANDI BAHAUDDIN",
+    "CHINIOT": "CHINIOT",
+    "JHANG": "JHANG",
+    "TOBA TEK SINGH": "TOBA TEK SINGH",
+    "T.T. SINGH": "TOBA TEK SINGH",
+    "VEHARI": "VEHARI",
+    "KHANEWAL": "KHANEWAL",
+    "LODHRAN": "LODHRAN",
+    "PAKPATTAN": "PAKPATTAN",
+    "MUZAFFARGARH": "MUZAFFARGARH",
+    "LAYYAH": "LAYYAH",
+    "RAJANPUR": "RAJANPUR",
+    "DADU": "DADU",
+    "HYDERABAD": "HYDERABAD",
+    "SUKKUR": "SUKKUR",
+    "LARKANA": "LARKANA",
+    "NAWABSHAH": "NAWABSHAH",
+    "MIRPURKHAS": "MIRPURKHAS",
+    "MIRPUR KHAS": "MIRPURKHAS",
+    "JACOBABAD": "JACOBABAD",
+    "SHIKARPUR": "SHIKARPUR",
+    "KHAIRPUR": "KHAIRPUR",
+    "SANGHAR": "SANGHAR",
+    "QUETTA": "QUETTA",
+    "TURBAT": "TURBAT",
+    "GWADAR": "GWADAR",
+    "HUB": "HUB",
+    "ABBOTTABAD": "ABBOTTABAD",
+    "MANSEHRA": "MANSEHRA",
+    "MARDAN": "MARDAN",
+    "SWAT": "SWAT",
+    "SWABI": "SWABI",
+    "NOWSHERA": "NOWSHERA",
+    "CHARSADDA": "CHARSADDA",
+    "KOHAT": "KOHAT",
+    "BANNU": "BANNU",
+    "MUZAFFARABAD": "MUZAFFARABAD",
+    "MIRPUR": "MIRPUR",
+    "KOTLI": "KOTLI",
+  };
+
+  return aliases[city] ?? city;
+}
+
+/**
+ * Truncate a string to a max byte/char length, trimming at a word boundary.
+ */
+function truncate(value: string, max: number): string {
+  if (value.length <= max) return value;
+  return value.slice(0, max).replace(/\s+\S*$/, "").trim() || value.slice(0, max).trim();
+}
+
+// ---------------------------------------------------------------------------
+// API client
+// ---------------------------------------------------------------------------
+
 function getBaseUrl() {
   return process.env.INSTAWORLD_BASE_URL || "https://one-be.instaworld.pk/merchant-api/v2";
 }
 
-export function buildStableReference(operationId: string) {
+export function buildStableReference(operationId: string): string {
   const prefix = process.env.INSTAWORLD_REF_PREFIX || "";
-  // ref_no maxLength is 200 per spec — trim UUID to keep well within limit
   return `${prefix}${operationId}`.slice(0, 200);
 }
 
@@ -57,34 +199,47 @@ async function request(path: string, init?: RequestInit) {
 }
 
 /**
- * API success responses are wrapped: { data: { tracking_number, ... } }
- * List responses:                    { data: [...], meta: {...} }
- * Error responses:                   { error: { code, message, details, request_id } }
+ * Extract a user-friendly error message from InstaWorld's error envelope.
+ * Spec: { error: { code, message, details: [{field, issue}], request_id } }
  */
-function extractTrackingNumber(payload: any): string | null {
-  // Single shipment response: { data: { tracking_number } }
-  const candidate = payload?.data;
-  const trackingNumber =
-    (typeof candidate === "object" && !Array.isArray(candidate) && candidate?.tracking_number) ||
-    // List response (findByReference): { data: [ { tracking_number } ] }
-    (Array.isArray(candidate) && candidate[0]?.tracking_number) ||
-    null;
-  return typeof trackingNumber === "string" && trackingNumber.length > 0 ? trackingNumber : null;
+function extractErrorMessage(payload: any, status: number): string {
+  const err = payload?.error;
+  if (!err) return `InstaWorld returned HTTP ${status}.`;
+
+  // Field-level validation errors → list them clearly
+  if (Array.isArray(err.details) && err.details.length > 0) {
+    const fieldErrors = err.details
+      .map((d: any) => (d.field ? `${d.field}: ${d.issue ?? "invalid"}` : d.issue ?? JSON.stringify(d)))
+      .join("; ");
+    return `InstaWorld validation failed — ${fieldErrors}`;
+  }
+
+  if (err.message) return String(err.message);
+  if (err.code) {
+    // Map known codes to friendly messages
+    const codeMessages: Record<string, string> = {
+      city_not_serviceable: "The destination city is not serviceable by InstaWorld.",
+      invalid_phone: "The consignee phone number is invalid. Please update the shipping address.",
+      location_not_owned: "The configured InstaWorld location ID does not belong to your account.",
+      invalid_api_key: "InstaWorld API key is invalid or revoked. Please update INSTAWORLD_API_KEY.",
+      account_inactive: "Your InstaWorld account is inactive.",
+      booking_failed: "No courier accepted the shipment. Please try again in a few minutes.",
+      rate_limited: "InstaWorld rate limit reached. Please wait a moment and try again.",
+    };
+    return codeMessages[err.code] ?? `InstaWorld error: ${err.code}`;
+  }
+  return `InstaWorld returned HTTP ${status}.`;
 }
 
-function extractErrorMessage(payload: any, status: number): string {
-  // Spec: { error: { code, message, details, request_id } }
-  const err = payload?.error;
-  if (err?.message) return String(err.message);
-  if (err?.code) return `InstaWorld error: ${err.code}`;
-  return `InstaWorld booking failed with HTTP ${status}.`;
-}
+// ---------------------------------------------------------------------------
+// Public API functions
+// ---------------------------------------------------------------------------
 
 export async function findShipmentByReference(refNo: string): Promise<InstaWorldShipment | null> {
   validateReference(refNo);
   const response = await request(`/shipments?ref_no=${encodeURIComponent(refNo)}`);
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(`InstaWorld lookup failed with HTTP ${response.status}.`);
+  if (!response.ok) throw new Error(extractErrorMessage(payload, response.status));
   // Response: { data: [ {...} ], meta: {...} }
   const list = Array.isArray(payload?.data) ? payload.data : [];
   const candidate = list[0];
@@ -99,9 +254,9 @@ export async function createShipment(
   validateReference(requestPayload.refNo);
   const body: Record<string, unknown> = {
     location_id: requestPayload.locationId,
-    payment: requestPayload.payment,  // { type: "cod"|"paid", amount: number }
+    payment: requestPayload.payment,
     consignee: requestPayload.consignee,
-    items: requestPayload.items,      // each item has { quantity, kg, title?, sku?, price? }
+    items: requestPayload.items,
   };
   if (requestPayload.refNo) body.ref_no = requestPayload.refNo;
 
@@ -111,22 +266,26 @@ export async function createShipment(
     body: JSON.stringify(body),
   });
   const payload = await response.json().catch(() => ({}));
+
   if (!response.ok) {
     const message = extractErrorMessage(payload, response.status);
     const error = new Error(message);
     Object.assign(error, {status: response.status, code: payload?.error?.code});
     throw error;
   }
-  // Response: { data: { tracking_number, ... } }
-  const trackingNumber = extractTrackingNumber(payload);
+
+  // Success response: { data: { tracking_number, ... } }
+  const data = payload?.data;
+  const trackingNumber =
+    typeof data === "object" && !Array.isArray(data) && typeof data?.tracking_number === "string"
+      ? data.tracking_number
+      : null;
   if (!trackingNumber) throw new Error("InstaWorld returned success without a tracking number.");
-  return {trackingNumber, raw: payload.data};
+  return {trackingNumber, raw: data};
 }
 
 /**
- * Payment type as required by InstaWorld v2 spec:
- *   COD orders  → "cod"
- *   Prepaid     → "paid"
+ * Payment type per InstaWorld v2 spec enum: "cod" | "paid"
  */
 export function getPaymentType(treatment: "cod" | "prepaid"): "cod" | "paid" {
   return treatment === "cod" ? "cod" : "paid";
@@ -135,3 +294,6 @@ export function getPaymentType(treatment: "cod" | "prepaid"): "cod" | "paid" {
 export function isContractConfirmed() {
   return true;
 }
+
+// Re-export helpers so booking.server.ts can use them
+export {normalisePhone, normaliseCity, truncate};
