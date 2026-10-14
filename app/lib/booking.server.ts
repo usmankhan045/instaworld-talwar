@@ -28,29 +28,40 @@ function addressText(order: ShopifyOrder) {
     .join(", ");
 }
 
+function splitName(full: string): {first_name: string; last_name?: string} {
+  const parts = full.trim().split(/\s+/);
+  const first_name = parts[0] || "Customer";
+  const last_name = parts.length > 1 ? parts.slice(1).join(" ") : undefined;
+  return {first_name, last_name};
+}
+
 function buildRequest(
   combined: ReturnType<typeof combineOrders>,
   orders: ShopifyOrder[],
   refNo: string,
 ): InstaWorldRequest {
+  const consigneeName = combined.consignee.name || "";
+  const {first_name, last_name} = splitName(consigneeName);
   return {
     refNo,
-    dispatchLocationId: Number(process.env.INSTAWORLD_LOCATION_ID || 16917),
+    locationId: Number(process.env.INSTAWORLD_LOCATION_ID || 16917),
     payment: {
       type: getPaymentType(combined.payment.treatment),
       amount: combined.payment.amountDue,
     },
     consignee: {
-      name: combined.consignee.name || orders[0].customer?.name || "",
+      first_name,
+      last_name,
       phone: combined.consignee.phone || "",
-      city: combined.consignee.city || "",
+      city: (combined.consignee.city || "").toUpperCase(),
       address: addressText(orders[0]),
     },
     items: combined.items.map((item) => ({
-      name: item.title,
+      title: item.title,
       sku: item.sku,
       quantity: item.quantity,
-      weight: item.quantity * 0.8,
+      kg: item.quantity * 0.8,
+      price: undefined,
     })),
   };
 }
