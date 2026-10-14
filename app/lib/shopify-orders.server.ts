@@ -18,6 +18,7 @@ export type Money = {
 export type ShopifyOrder = {
   id: string;
   orderNumber: string;
+  email: string | null;
   createdAt: string;
   cancelledAt: string | null;
   displayFinancialStatus: string | null;
@@ -41,6 +42,7 @@ export type ShopifyOrder = {
     title: string;
     sku: string | null;
     quantity: number;
+    color: string | null;
     unitPrice: Money;
     totalPrice: Money;
   }>;
@@ -54,6 +56,7 @@ type GraphqlResponse<T> = {
 const ORDER_FIELDS = `
   id
   name
+  email
   createdAt
   cancelledAt
   displayFinancialStatus
@@ -88,6 +91,11 @@ const ORDER_FIELDS = `
         title
         sku
         quantity
+        product {
+          color: metafield(namespace: "custom", key: "color") {
+            value
+          }
+        }
         originalUnitPriceSet {
           shopMoney {
             amount
@@ -132,6 +140,7 @@ function parseOrder(node: any): ShopifyOrder {
   return {
     id: String(node.id),
     orderNumber: String(node.name).replace(/^#/, ""),
+    email: node.email ? String(node.email) : null,
     createdAt: String(node.createdAt),
     cancelledAt: node.cancelledAt ?? null,
     displayFinancialStatus: node.displayFinancialStatus ?? null,
@@ -160,6 +169,7 @@ function parseOrder(node: any): ShopifyOrder {
         title: String(item.title || "Product"),
         sku: item.sku ?? null,
         quantity: Number(item.quantity),
+        color: item.product?.color?.value ? String(item.product.color.value) : null,
         unitPrice: shopMoney(item.originalUnitPriceSet),
         totalPrice: shopMoney(item.discountedTotalSet),
       }),

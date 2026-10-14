@@ -2,8 +2,6 @@ import "@shopify/ui-extensions/preact";
 import {render} from "preact";
 import {useEffect, useState} from "preact/hooks";
 
-const DEFAULT_WEIGHT_PER_QUANTITY = 0.8;
-
 /**
  * Production Vercel app URL.  All extension→app fetch calls must target this
  * origin — `window.location.origin` inside the Admin extension sandbox resolves
@@ -52,7 +50,6 @@ function Extension() {
   const [search, setSearch] = useState("");
   const [results, setResults] = useState([]);
   const [combined, setCombined] = useState(null);
-  const [declaredWeight, setDeclaredWeight] = useState("");
   const [loading, setLoading] = useState(Boolean(currentOrderId));
   const [searching, setSearching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -90,7 +87,7 @@ function Extension() {
       }
       setSelectedOrders(payload.combined.orders || []);
       setCombined(payload.combined);
-      setDeclaredWeight(String(payload.combined.defaultWeight));
+      // Weight is always fixed at 0.8 kg
       setCityWarning(payload.cityWarning || "");
     } catch (previewError) {
       setError(previewError instanceof Error ? previewError.message : "Unable to validate orders.");
@@ -137,13 +134,8 @@ function Extension() {
   }
 
   async function bookShipment() {
-    const numericWeight = Number(declaredWeight);
     if (selectedOrderIds.length < 1) {
       setError("No order selected.");
-      return;
-    }
-    if (!Number.isFinite(numericWeight) || numericWeight <= 0) {
-      setError("Declared weight must be a positive number.");
       return;
     }
 
@@ -155,7 +147,8 @@ function Extension() {
       const response = await fetch(`${APP_URL}/api/instaworld-booking`, {
         method: "POST",
         headers: {"Content-Type": "application/json", ...authHeaders},
-        body: JSON.stringify({orderIds: selectedOrderIds, declaredWeight: numericWeight}),
+        // Weight is always fixed at 0.8 kg
+        body: JSON.stringify({orderIds: selectedOrderIds, declaredWeight: 0.8}),
       });
       const payload = await response.json();
       if (!response.ok || !payload.success) {
@@ -230,16 +223,7 @@ function Extension() {
             <s-text>
               Payment: {formatMoney(combined.payment?.amountDue, combined.payment?.currencyCode)} ({combined.payment?.treatment})
             </s-text>
-            <label style={{display: "grid", gap: "4px"}}>
-              <span>Declared weight (kg; default {DEFAULT_WEIGHT_PER_QUANTITY} kg per quantity)</span>
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={declaredWeight}
-                onInput={(event) => setDeclaredWeight(event.target.value)}
-              />
-            </label>
+            <s-text>Standard weight: 0.8 kg (fixed)</s-text>
           </>
         )}
 

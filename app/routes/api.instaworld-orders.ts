@@ -8,6 +8,7 @@ import {
   searchShopifyOrders,
 } from "../lib/shopify-orders.server";
 import { normaliseCity } from "../lib/instaworld.server";
+import { verifyAddressCity } from "../lib/address-validation.server";
 import { authenticate } from "../shopify.server";
 
 function json(data: unknown, init?: ResponseInit) {
@@ -155,6 +156,15 @@ export async function action({ request }: ActionFunctionArgs) {
 
     stage = "order combination";
     const combined = combineOrders(orders);
+
+    // Check address–city match (fail-open: only block if we get a confident mismatch)
+    const addressMismatch = await verifyAddressCity(
+      combined.consignee.address1,
+      combined.consignee.city,
+    );
+    if (addressMismatch) {
+      return json({ message: addressMismatch }, { status: 422 });
+    }
 
     // Check if InstaWorld services the destination city — non-blocking warning
     const cityWarning = await checkCityServiceable(combined.consignee.city ?? "");

@@ -19,6 +19,7 @@ export type CombinedOrder = {
     key: string;
     title: string;
     sku: string | null;
+    color: string | null;
     quantity: number;
     sourceOrderIds: string[];
   }>;
@@ -145,6 +146,7 @@ export function combineOrders(
           key,
           title: item.title,
           sku: item.sku,
+          color: item.color ?? null,
           quantity: item.quantity,
           sourceOrderIds: [order.id],
         });

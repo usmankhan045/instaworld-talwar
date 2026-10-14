@@ -8,13 +8,14 @@ function order(overrides: Record<string, unknown> = {}) {
   return {
     id: `gid://shopify/Order/${Math.random()}`,
     orderNumber: "1001",
+    email: "test@example.com",
     createdAt: "2026-10-14T00:00:00Z",
     cancelledAt: null,
     displayFinancialStatus: "PENDING",
     paymentStatus: "PENDING",
     totalPrice: {amount: "100", currencyCode: "PKR"},
     totalOutstanding: {amount: "100", currencyCode: "PKR"},
-    customer: {id: "customer-1", name: "Ali Khan", email: "ali@example.com"},
+    customer: null,
     shippingAddress: {
       name: "Ali Khan",
       phone: "+923001234567",
@@ -33,6 +34,7 @@ function order(overrides: Record<string, unknown> = {}) {
         title: "Shirt",
         sku: "SHIRT",
         quantity: 1,
+        color: null,
         unitPrice: {amount: "100", currencyCode: "PKR"},
         totalPrice: {amount: "100", currencyCode: "PKR"},
       },

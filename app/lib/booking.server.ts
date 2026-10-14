@@ -6,7 +6,6 @@ import {
   createShipment,
   findShipmentByReference,
   getPaymentType,
-  buildStableReference,
   normalisePhone,
   normaliseCity,
   truncate,
@@ -68,9 +67,13 @@ function buildRequest(
   // City: normalise + alias map
   const city = normaliseCity(combined.consignee.city);
 
+  // Email: use the primary order's email, or "nil" if not provided
+  const email = orders[0]?.email || "nil";
+
   return {
     refNo,
     locationId: Number(process.env.INSTAWORLD_LOCATION_ID || 16917),
+    remarks: "allow to open",
     payment: {
       type: getPaymentType(combined.payment.treatment),
       amount: combined.payment.amountDue,
@@ -81,12 +84,16 @@ function buildRequest(
       phone,
       city,
       address: addressText(orders[0]),
+      email,
     },
     items: combined.items.map((item) => ({
       title: item.title ? truncate(item.title, 100) : undefined,
       sku: item.sku ?? undefined,
+      // Color from the product's custom.color metafield (set in Shopify admin)
+      productDetail: item.color ?? undefined,
       quantity: item.quantity,
-      kg: Math.round(item.quantity * 0.8 * 100) / 100,
+      // Fixed 0.8 kg per line item regardless of quantity
+      kg: 0.8,
     })),
   };
 }
@@ -100,7 +107,10 @@ export async function bookCombinedOrders(
   const combined = combineOrders(orders, declaredWeight);
   const attemptId = randomUUID();
   const idempotencyKey = randomUUID();
-  const refNo = buildStableReference(attemptId);
+  // Use Shopify order number(s) as the human-readable refNo (e.g. "1006" or "1006+1007")
+  const orderNumbers = orders.map((o) => o.orderNumber).join("+");
+  const prefix = process.env.INSTAWORLD_REF_PREFIX || "";
+  const refNo = `${prefix}${orderNumbers}`.slice(0, 200);
   const leaseExpiresAt = new Date(Date.now() + RESERVATION_LEASE_MS);
   const requestPayload = buildRequest(combined, orders, refNo);
 

@@ -96,7 +96,7 @@ function BulkBookExtension() {
           headers: {"Content-Type": "application/json", ...authHeaders},
           body: JSON.stringify({
             orderIds: [orderId],
-            declaredWeight: combined.defaultWeight,
+            declaredWeight: 0.8,
           }),
         });
         const bookPayload = await bookRes.json();

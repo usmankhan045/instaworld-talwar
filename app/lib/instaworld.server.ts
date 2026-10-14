@@ -14,6 +14,7 @@ export type InstaWorldShipment = {
 export type InstaWorldRequest = {
   refNo: string | null;
   locationId: number;
+  remarks?: string;
   payment: {type: "cod" | "paid"; amount: number};
   consignee: {
     first_name: string;
@@ -23,7 +24,7 @@ export type InstaWorldRequest = {
     city: string;
     email?: string;
   };
-  items: Array<{title?: string; sku?: string | null; quantity: number; kg: number; price?: number}>;
+  items: Array<{title?: string; sku?: string | null; productDetail?: string; quantity: number; kg: number; price?: number}>;
 };
 
 // ---------------------------------------------------------------------------
@@ -259,6 +260,7 @@ export async function createShipment(
     items: requestPayload.items,
   };
   if (requestPayload.refNo) body.ref_no = requestPayload.refNo;
+  if (requestPayload.remarks) body.remarks = requestPayload.remarks;
 
   const response = await request("/shipments", {
     method: "POST",
