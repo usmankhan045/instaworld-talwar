@@ -10,12 +10,25 @@ function json(data: unknown, init?: ResponseInit) {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
       ...(init?.headers || {}),
     },
   });
 }
 
 export async function loader({request}: LoaderFunctionArgs) {
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      },
+    });
+  }
   const {session} = await authenticate.admin(request);
   const orderId = new URL(request.url).searchParams.get("orderId")?.trim();
   if (!orderId) {
