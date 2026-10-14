@@ -14,14 +14,20 @@
 
 Set these for all environments (Production, Preview, Development):
 
+> ⚠️ **Every variable below must have a real, non-empty value in Vercel.**  
+> `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, and `SHOPIFY_APP_URL` are passed directly to  
+> `shopifyApp()` at startup. If any of these are blank or missing, **every request throws  
+> a configuration error** and Vercel logs an "Application Error" (HTTP 500) on the initial  
+> page load and on any fetch the Admin UI Extension makes to the app server.
+
 | Variable | Source | Notes |
 |---|---|---|
 | `DATABASE_URL` | Neon → Connection Details → Pooled URL | Used by Prisma for query execution (via connection pooling) |
 | `DIRECT_DATABASE_URL` | Neon → Connection Details → Direct URL | Used by Prisma Migrate; bypasses pooler for DDL |
-| `SHOPIFY_API_KEY` | Shopify Partners → App → API credentials | |
-| `SHOPIFY_API_SECRET` | Shopify Partners → App → API credentials | |
-| `SHOPIFY_APP_URL` | Your Vercel deployment URL | e.g. `https://your-app.vercel.app` |
-| `SCOPES` | `read_orders` (or comma-separated list) | |
+| `SHOPIFY_API_KEY` | Shopify Partners → App → API credentials | **Must not be empty** |
+| `SHOPIFY_API_SECRET` | Shopify Partners → App → API credentials | **Must not be empty** |
+| `SHOPIFY_APP_URL` | `https://app.talwarstore.com` | **Must equal the production Vercel URL exactly** — the Admin UI Extension hardcodes this URL as its fetch base; any mismatch will cause extension API calls to fail |
+| `SCOPES` | `read_orders` | |
 | `INSTAWORLD_API_KEY` | InstaWorld merchant portal | |
 | `INSTAWORLD_BASE_URL` | `https://one-be.instaworld.pk/merchant-api/v2` | Default is already set in .env.example |
 | `INSTAWORLD_LOCATION_ID` | InstaWorld merchant portal | |
@@ -88,11 +94,14 @@ npm run setup && npm run build
 
 ## First Deploy Checklist
 
-- [ ] Set all environment variables in Vercel dashboard
-- [ ] Deploy to Vercel (`git push` or Vercel CLI)
+- [ ] Set **all** environment variables in Vercel dashboard — especially `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, and `SHOPIFY_APP_URL=https://app.talwarstore.com` (blank values cause HTTP 500 on every request)
+- [ ] Deploy app to Vercel (`git push` or Vercel CLI)
 - [ ] Run `npx prisma migrate deploy` manually (see above)
 - [ ] Verify Neon console shows all 6 tables: `Session`, `OrderBooking`, `Shipment`, `ShipmentOrder`, `BookingAttempt`, `OrderReservation`
 - [ ] Install the Shopify app on a development store to confirm auth/session works
+- [ ] Run `npm run deploy` (or `shopify app deploy`) to upload the extension bundle to Shopify's CDN
+- [ ] In Shopify Partners dashboard, confirm the extension version is **Active**
+- [ ] Open a test order in the Shopify Admin and verify the **InstaWorld Booking** action button appears
 - [ ] Confirm `INSTAWORLD_ENABLE_LIVE=false` — no live shipments should be created
 
 ---
@@ -127,3 +136,19 @@ INSTAWORLD_IDEMPOTENCY_CONFIRMED=false # requires idempotency test with InstaWor
 ```
 
 Do not enable these until the merchant API contract has been verified and a controlled live test has been authorized.
+
+---
+
+## Admin UI Extension Authentication
+
+The `instaworld-booking` Admin UI Extension communicates with the app server (Vercel) by:
+
+1. **Calling `shopify.auth.idToken()`** — the Shopify platform issues a signed OIDC ID token for the current merchant session.
+2. **Sending `Authorization: Bearer <token>`** on every `fetch` request to `/api/instaworld-orders` and `/api/instaworld-booking`.
+3. **Server-side validation** — `authenticate.admin(request)` in `@shopify/shopify-app-react-router` validates the ID token signature using Shopify's public JWKS. No code changes are needed on the server side.
+
+> **Why not `window.location.origin`?**  
+> Inside the Admin extension sandbox, `window.location` reflects the extension CDN origin (e.g. `https://cdn.shopify.com`), **not** the Vercel app URL. All fetch calls must target `https://app.talwarstore.com` directly.
+
+> **Why not `shopify.sessionToken()`?**  
+> The `sessionToken()` method does not exist in `@shopify/ui-extensions` 2026.x. The correct API is `shopify.auth.idToken()`, which returns a Promise resolving to a JWT string or `null`.

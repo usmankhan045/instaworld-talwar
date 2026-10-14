@@ -4,15 +4,45 @@ import {useEffect, useState} from "preact/hooks";
 
 const DEFAULT_WEIGHT_PER_QUANTITY = 0.8;
 
+/**
+ * Production Vercel app URL.  All extension→app fetch calls must target this
+ * origin — `window.location.origin` inside the Admin extension sandbox resolves
+ * to the extension CDN origin, not the app server.
+ */
+const APP_URL = "https://app.talwarstore.com";
+
 function formatMoney(amount, currency) {
   const numeric = Number(amount);
   if (!Number.isFinite(numeric)) return "—";
   return `${numeric.toFixed(2)} ${currency || ""}`.trim();
 }
 
-export default async () => {
+/**
+ * Retrieve a Shopify OIDC ID token and return an `Authorization` header object.
+ * The server validates this token in `authenticate.admin(request)`.
+ * Throws if the platform cannot issue a token so that callers surface the error
+ * rather than making an unauthenticated request.
+ */
+async function getAuthHeaders() {
+  const token = await shopify.auth.idToken();
+  if (!token) {
+    throw new Error("Unable to obtain an authentication token. Please reload the page.");
+  }
+  return {Authorization: `Bearer ${token}`};
+}
+
+/**
+ * Extension entry point.
+ *
+ * Must be a plain (non-async) default export.  The Shopify CLI build shim wraps
+ * it as `shopify.extend("admin.order-details.action.render", (...args) => extension(...args))`.
+ * An async default export returns a Promise to `shopify.extend`, which does not
+ * await it, so the extension may not register reliably.  Render is synchronous
+ * in remote-dom; async is unnecessary and harmful here.
+ */
+export default function extension() {
   render(<Extension />, document.body);
-};
+}
 
 function Extension() {
   const {close, data} = shopify;
@@ -42,9 +72,10 @@ function Extension() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(`${window.location.origin}/api/instaworld-orders`, {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${APP_URL}/api/instaworld-orders`, {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
+        headers: {"Content-Type": "application/json", ...authHeaders},
         body: JSON.stringify({orderIds}),
       });
       const payload = await response.json();
@@ -72,8 +103,10 @@ function Extension() {
     setSearching(true);
     setError("");
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(
-        `${window.location.origin}/api/instaworld-orders?q=${encodeURIComponent(search.trim())}`,
+        `${APP_URL}/api/instaworld-orders?q=${encodeURIComponent(search.trim())}`,
+        {headers: {...authHeaders}},
       );
       const payload = await response.json();
       if (!response.ok) throw new Error(payload?.message || "Order search failed.");
@@ -116,9 +149,10 @@ function Extension() {
     setError("");
     setMessage("");
     try {
-      const response = await fetch(`${window.location.origin}/api/instaworld-booking`, {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${APP_URL}/api/instaworld-booking`, {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
+        headers: {"Content-Type": "application/json", ...authHeaders},
         body: JSON.stringify({orderIds: selectedOrderIds, declaredWeight: numericWeight}),
       });
       const payload = await response.json();
@@ -136,7 +170,7 @@ function Extension() {
   return (
     <s-admin-action>
       <s-stack direction="block" gap="base">
-        <s-text type="strong">Confirm & Book InstaWorld</s-text>
+        <s-text type="strong">Confirm &amp; Book InstaWorld</s-text>
         <s-text>
           Select two or more compatible orders. No shipment is created until you confirm.
         </s-text>
