@@ -1,0 +1,126 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
+// enough when changing adapters.
+// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
+datasource db {
+  provider = "sqlite"
+  url      = "file:dev.sqlite"
+}
+
+model Session {
+  id            String    @id
+  shop          String
+  state         String
+  isOnline      Boolean   @default(false)
+  scope         String?
+  expires       DateTime?
+  accessToken   String
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean   @default(false)
+  locale        String?
+  collaborator  Boolean?  @default(false)
+  emailVerified Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+}
+
+model OrderBooking {
+  id              String    @id @default(cuid())
+  shop            String
+  orderId         String
+  orderNumber     String
+  trackingNumber  String?
+  status          String    @default("pending")
+  declaredWeight  Float?
+  paymentType     String?
+  amountDue       Float?
+  bookedAt        DateTime?
+  apiError        String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([shop, orderId], name: "orderBooking_unique")
+  @@index([shop, orderNumber])
+}
+
+model Shipment {
+  id             String            @id @default(cuid())
+  shop           String
+  refNo          String
+  trackingNumber String?
+  status         String            @default("pending")
+  declaredWeight Float?
+  paymentType    String?
+  amountDue      Float?
+  currencyCode   String?
+  bookedAt       DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  orders         ShipmentOrder[]
+  attempts       BookingAttempt[]
+
+  @@unique([shop, refNo], name: "shipment_shop_refNo_key")
+}
+
+model ShipmentOrder {
+  id                String   @id @default(cuid())
+  shop              String
+  shipmentId        String
+  shopifyOrderId    String
+  shopifyOrderNumber String
+  createdAt         DateTime @default(now())
+  shipment          Shipment @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+
+  @@unique([shop, shopifyOrderId], name: "shipmentOrder_shop_shopifyOrderId_key")
+  @@unique([shipmentId, shopifyOrderId], name: "shipmentOrder_shipment_order_key")
+  @@index([shop, shipmentId])
+}
+
+model BookingAttempt {
+  id                String   @id @default(cuid())
+  shop              String
+  shipmentId        String
+  idempotencyKey    String
+  status            String   @default("created")
+  requestFingerprint String
+  requestPayload    String?
+  lastErrorCode     String?
+  lastErrorMessage  String?
+  lastHttpStatus    Int?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  leaseExpiresAt    DateTime?
+  leaseToken        String?
+  recoveryCount     Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  shipment          Shipment @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+
+  @@unique([shop, idempotencyKey], name: "bookingAttempt_shop_idempotencyKey_key")
+  @@unique([shop, shipmentId], name: "bookingAttempt_shop_shipmentId_key")
+}
+
+model OrderReservation {
+  id             String   @id @default(cuid())
+  shop           String
+  shopifyOrderId String
+  attemptId      String
+  state          String   @default("active")
+  leaseExpiresAt DateTime
+  releasedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([shop, shopifyOrderId], name: "orderReservation_shop_shopifyOrderId_key")
+  @@unique([attemptId, shopifyOrderId], name: "orderReservation_attempt_order_key")
+  @@index([shop, attemptId])
+}

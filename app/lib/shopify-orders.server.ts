@@ -1,0 +1,191 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+import type { AdminApiContext } from "@shopify/shopify-app-react-router/server";
+
+export type Money = {
+  amount: string;
+  currencyCode: string;
+};
+
+export type ShopifyOrder = {
+  id: string;
+  orderNumber: string;
+  createdAt: string;
+  cancelledAt: string | null;
+  displayFinancialStatus: string | null;
+  paymentStatus: string | null;
+  totalPrice: Money;
+  totalOutstanding: Money | null;
+  customer: {
+    id: string | null;
+    name: string;
+    email: string | null;
+  } | null;
+  shippingAddress: {
+    name: string | null;
+    phone: string | null;
+    address1: string | null;
+    address2: string | null;
+    city: string | null;
+    province: string | null;
+    provinceCode: string | null;
+    zip: string | null;
+    country: string | null;
+    countryCode: string | null;
+  } | null;
+  lineItems: Array<{
+    id: string;
+    title: string;
+    sku: string | null;
+    quantity: number;
+    unitPrice: Money;
+    totalPrice: Money;
+  }>;
+};
+
+type GraphqlResponse<T> = {
+  data?: T;
+  errors?: Array<{message: string}>;
+};
+
+const ORDER_FIELDS = `
+  id
+  name
+  orderNumber
+  createdAt
+  cancelledAt
+  displayFinancialStatus
+  paymentStatus
+  totalPriceSet { shopMoney { amount currencyCode } }
+  totalOutstandingSet { shopMoney { amount currencyCode } }
+  customer { id firstName lastName email }
+  shippingAddress {
+    name phone address1 address2 city province provinceCode zip country countryCodeV2
+  }
+  lineItems(first: 250) {
+    edges {
+      node {
+        id
+        title
+        sku
+        quantity
+        originalUnitPriceSet { shopMoney { amount currencyCode } }
+        discountedTotalSet { shopMoney { amount currencyCode } }
+      }
+    }
+  }
+`;
+
+function assertGraphqlSuccess<T>(result: GraphqlResponse<T>): T {
+  if (result.errors?.length) {
+    throw new Error(result.errors.map((error) => error.message).join("; "));
+  }
+  if (!result.data) {
+    throw new Error("Shopify returned no data.");
+  }
+  return result.data;
+}
+
+function parseOrder(node: any): ShopifyOrder {
+  if (!node?.id || !node.orderNumber) {
+    throw new Error("Shopify returned an incomplete order.");
+  }
+
+  const shopMoney = (value: any): Money => ({
+    amount: String(value?.shopMoney?.amount ?? ""),
+    currencyCode: String(value?.shopMoney?.currencyCode ?? ""),
+  });
+
+  return {
+    id: node.id,
+    orderNumber: String(node.orderNumber),
+    createdAt: String(node.createdAt),
+    cancelledAt: node.cancelledAt ?? null,
+    displayFinancialStatus: node.displayFinancialStatus ?? null,
+    paymentStatus: node.paymentStatus ?? null,
+    totalPrice: shopMoney(node.totalPriceSet),
+    totalOutstanding: node.totalOutstandingSet ? shopMoney(node.totalOutstandingSet) : null,
+    customer: node.customer
+      ? {
+          id: node.customer.id ?? null,
+          name: [node.customer.firstName, node.customer.lastName]
+            .filter(Boolean)
+            .join(" ")
+            .trim(),
+          email: node.customer.email ?? null,
+        }
+      : null,
+    shippingAddress: node.shippingAddress
+      ? {
+          name: node.shippingAddress.name ?? null,
+          phone: node.shippingAddress.phone ?? null,
+          address1: node.shippingAddress.address1 ?? null,
+          address2: node.shippingAddress.address2 ?? null,
+          city: node.shippingAddress.city ?? null,
+          province: node.shippingAddress.province ?? null,
+          provinceCode: node.shippingAddress.provinceCode ?? null,
+          zip: node.shippingAddress.zip ?? null,
+          country: node.shippingAddress.country ?? null,
+          countryCode: node.shippingAddress.countryCodeV2 ?? null,
+        }
+      : null,
+    lineItems: (node.lineItems?.edges ?? []).map(({node: item}: any) => ({
+      id: String(item.id),
+      title: String(item.title || "Product"),
+      sku: item.sku ?? null,
+      quantity: Number(item.quantity),
+      unitPrice: shopMoney(item.originalUnitPriceSet),
+      totalPrice: shopMoney(item.discountedTotalSet),
+    })),
+  };
+}
+
+export async function getShopifyOrders(
+  admin: AdminApiContext,
+  orderIds: string[],
+): Promise<ShopifyOrder[]> {
+  const result = await admin.graphql(
+    `#graphql
+      query OrdersById($ids: [ID!]!) {
+        nodes(ids: $ids) {
+          ... on Order { ${ORDER_FIELDS} }
+        }
+      }
+    `,
+    {variables: {ids: orderIds}},
+  );
+  const data = assertGraphqlSuccess(await result.json() as GraphqlResponse<{nodes: any[]}>);
+  const nodes = data.nodes.filter(Boolean);
+  if (nodes.length !== orderIds.length) {
+    throw new Error("One or more selected Shopify orders could not be found.");
+  }
+  return nodes.map(parseOrder);
+}
+
+export async function searchShopifyOrders(
+  admin: AdminApiContext,
+  search: string,
+): Promise<Array<Pick<ShopifyOrder, "id" | "orderNumber" | "createdAt" | "cancelledAt">>> {
+  const result = await admin.graphql(
+    `#graphql
+      query SearchOrders($query: String!) {
+        orders(first: 25, query: $query, sortKey: CREATED_AT, reverse: true) {
+          nodes {
+            id
+            orderNumber
+            createdAt
+            cancelledAt
+          }
+        }
+      }
+    `,
+    {variables: {query: search.trim()}},
+  );
+  const data = assertGraphqlSuccess(await result.json() as GraphqlResponse<{orders: {nodes: any[]}}>);
+  return data.orders.nodes.map((order) => ({
+    id: String(order.id),
+    orderNumber: String(order.orderNumber),
+    createdAt: String(order.createdAt),
+    cancelledAt: order.cancelledAt ?? null,
+  }));
+}
