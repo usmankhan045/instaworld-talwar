@@ -12,6 +12,7 @@ import {
   truncate,
   type InstaWorldRequest,
 } from "./instaworld.server";
+import {createShopifyFulfillment} from "./shopify-fulfillment.server";
 import type {ShopifyOrder} from "./shopify-orders.server";
 
 const RESERVATION_LEASE_MS = 5 * 60 * 1000;
@@ -94,6 +95,7 @@ export async function bookCombinedOrders(
   shop: string,
   orders: ShopifyOrder[],
   declaredWeight: number,
+  admin?: unknown,
 ) {
   const combined = combineOrders(orders, declaredWeight);
   const attemptId = randomUUID();
@@ -156,7 +158,7 @@ export async function bookCombinedOrders(
   try {
     const existing = await findShipmentByReference(refNo);
     if (existing) {
-      return await finalizeSuccessfulBooking(shop, attempt.id, existing.trackingNumber, orders);
+      return await finalizeSuccessfulBooking(shop, attempt.id, existing.trackingNumber, orders, admin);
     }
 
     await prisma.bookingAttempt.update({
@@ -169,7 +171,7 @@ export async function bookCombinedOrders(
     });
 
     const result = await createShipment(requestPayload, idempotencyKey);
-    return await finalizeSuccessfulBooking(shop, attempt.id, result.trackingNumber, orders);
+    return await finalizeSuccessfulBooking(shop, attempt.id, result.trackingNumber, orders, admin);
   } catch (error) {
     const status = typeof error === "object" && error && "status" in error ? Number(error.status) : null;
     const definite = status !== null && status >= 400 && status < 500;
@@ -251,6 +253,7 @@ async function finalizeSuccessfulBooking(
   attemptId: string,
   trackingNumber: string,
   sourceOrders: Array<Pick<ShopifyOrder, "id" | "orderNumber">>,
+  admin?: unknown,
 ) {
   const attempt = await prisma.bookingAttempt.findUniqueOrThrow({
     where: {id: attemptId},
@@ -285,5 +288,30 @@ async function finalizeSuccessfulBooking(
     });
     return shipment;
   });
+
+  // Create Shopify fulfillment with InstaWorld tracking number
+  if (admin && trackingNumber) {
+    try {
+      const shopifyOrderIds = reservations.map((r) => r.shopifyOrderId);
+      const fulfillmentId = await createShopifyFulfillment(
+        admin,
+        shopifyOrderIds,
+        trackingNumber,
+      );
+      if (fulfillmentId) {
+        await prisma.shipment.update({
+          where: {id: orders.id},
+          data: {
+            shopifyFulfillmentId: fulfillmentId,
+            instaworldStatus: "BOOKED",
+          },
+        });
+      }
+    } catch (fulfillmentError) {
+      // Non-fatal — booking already succeeded; sync job will create the fulfillment
+      console.error("[booking] Failed to create Shopify fulfillment:", fulfillmentError);
+    }
+  }
+
   return {trackingNumber: orders.trackingNumber};
 }

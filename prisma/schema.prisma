@@ -54,22 +54,33 @@ model OrderBooking {
 }
 
 model Shipment {
-  id             String            @id @default(cuid())
-  shop           String
-  refNo          String
-  trackingNumber String?
-  status         String            @default("pending")
-  declaredWeight Float?
-  paymentType    String?
-  amountDue      Float?
-  currencyCode   String?
-  bookedAt       DateTime?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  orders         ShipmentOrder[]
-  attempts       BookingAttempt[]
+  id                    String            @id @default(cuid())
+  shop                  String
+  refNo                 String
+  trackingNumber        String?
+  status                String            @default("pending")
+  declaredWeight        Float?
+  paymentType           String?
+  amountDue             Float?
+  currencyCode          String?
+  bookedAt              DateTime?
+  instaworldStatus      String?           // Last known InstaWorld PublicStatusCode
+  shopifyFulfillmentId  String?           // Shopify fulfillment GID
+  lastSyncedAt          DateTime?         // When this shipment was last synced
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  orders                ShipmentOrder[]
+  attempts              BookingAttempt[]
 
   @@unique([shop, refNo], name: "shipment_shop_refNo_key")
+  @@index([shop, trackingNumber])
+}
+
+model SyncState {
+  id           String   @id @default(cuid())
+  shop         String   @unique
+  lastSyncedAt DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model ShipmentOrder {

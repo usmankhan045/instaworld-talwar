@@ -88,7 +88,7 @@ export async function action({request}: ActionFunctionArgs) {
 
   const orders = await getShopifyOrders(admin, orderIds);
   try {
-    const result = await bookCombinedOrders(session.shop, orders, declaredWeight);
+    const result = await bookCombinedOrders(session.shop, orders, declaredWeight, admin);
     return json({success: true, ...result});
   } catch (error) {
     return json(
