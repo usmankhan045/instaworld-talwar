@@ -27,7 +27,7 @@ Set these for all environments (Production, Preview, Development):
 | `SHOPIFY_API_KEY` | Shopify Partners → App → API credentials | **Must not be empty** |
 | `SHOPIFY_API_SECRET` | Shopify Partners → App → API credentials | **Must not be empty** |
 | `SHOPIFY_APP_URL` | `https://app.talwarstore.com` | **Must equal the production Vercel URL exactly** — the Admin UI Extension hardcodes this URL as its fetch base; any mismatch will cause extension API calls to fail |
-| `SCOPES` | `read_orders` | |
+| `SCOPES` | `read_orders,read_products` | Required because booking reads product metafields from order line items |
 | `INSTAWORLD_API_KEY` | InstaWorld merchant portal | |
 | `INSTAWORLD_BASE_URL` | `https://one-be.instaworld.pk/merchant-api/v2` | Default is already set in .env.example |
 | `INSTAWORLD_LOCATION_ID` | InstaWorld merchant portal | |
@@ -39,6 +39,11 @@ Set these for all environments (Production, Preview, Development):
 | `INSTAWORLD_REF_PATTERN` | Per InstaWorld contract | |
 | `INSTAWORLD_COD_PAYMENT_TYPE` | Per InstaWorld contract | |
 | `INSTAWORLD_PREPAID_PAYMENT_TYPE` | Per InstaWorld contract | |
+| `INSTAWORLD_TEST_SHOPS` | `talwar-instaworld.myshopify.com` | Shopify shops that must use the test account; comma-separated for multiple shops |
+| `INSTAWORLD_TEST_API_KEY` | InstaWorld test account | Required for every shop listed in `INSTAWORLD_TEST_SHOPS` |
+| `INSTAWORLD_TEST_BASE_URL` | `https://one-be.instaworld.pk/merchant-api/v2` | Test account API base URL |
+| `INSTAWORLD_TEST_LOCATION_ID` | InstaWorld test account | Required test-account location ID |
+| `INSTAWORLD_TEST_REF_PREFIX` | `TEST-` | Keeps test shipment references separate from live references |
 | `GEOCODE_MAPS_API_KEY` | geocode.maps.co | **Required for strict production address verification**; do not leave blank in Vercel |
 
 ---

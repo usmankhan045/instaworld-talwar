@@ -28,9 +28,7 @@ import {
   cancelShopifyFulfillment,
   instaworldStatusToShopify,
 } from "../lib/shopify-fulfillment.server";
-
-const INSTAWORLD_BASE_URL =
-  process.env.INSTAWORLD_BASE_URL || "https://one-be.instaworld.pk/merchant-api/v2";
+import {requireInstaWorldConfig} from "../lib/instaworld.server";
 
 function jsonResp(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -65,9 +63,8 @@ type InstaWorldShipmentsResponse = {
   meta?: {next_cursor?: string | null};
 };
 
-async function fetchInstaWorldShipments(updatedSince: Date): Promise<InstaWorldShipment[]> {
-  const apiKey = process.env.INSTAWORLD_API_KEY;
-  if (!apiKey) return [];
+async function fetchInstaWorldShipments(shop: string, updatedSince: Date): Promise<InstaWorldShipment[]> {
+  const config = requireInstaWorldConfig(shop);
 
   const allShipments: InstaWorldShipment[] = [];
   let cursor: string | null = null;
@@ -79,8 +76,8 @@ async function fetchInstaWorldShipments(updatedSince: Date): Promise<InstaWorldS
     });
     if (cursor) params.set("cursor", cursor);
 
-    const res = await fetch(`${INSTAWORLD_BASE_URL}/shipments?${params}`, {
-      headers: {Authorization: `Bearer ${apiKey}`, Accept: "application/json"},
+    const res = await fetch(`${config.baseUrl}/shipments?${params}`, {
+      headers: {Authorization: `Bearer ${config.apiKey}`, Accept: "application/json"},
       signal: AbortSignal.timeout(15000),
     });
 
@@ -131,7 +128,7 @@ export async function loader({request}: LoaderFunctionArgs) {
         const syncStart = new Date();
 
         // Fetch updated shipments from InstaWorld
-        const iwShipments = await fetchInstaWorldShipments(updatedSince);
+        const iwShipments = await fetchInstaWorldShipments(shop, updatedSince);
         if (iwShipments.length === 0) {
           await prisma.syncState.update({where: {shop}, data: {lastSyncedAt: syncStart}});
           continue;

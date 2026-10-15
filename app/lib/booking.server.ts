@@ -9,6 +9,7 @@ import {
   normalisePhone,
   normaliseCity,
   truncate,
+  requireInstaWorldConfig,
   type InstaWorldRequest,
 } from "./instaworld.server";
 import {createShopifyFulfillment} from "./shopify-fulfillment.server";
@@ -22,16 +23,6 @@ function fingerprint(orders: ShopifyOrder[], declaredWeight: number) {
     orderIds: orders.map((order) => order.id).sort(),
     declaredWeight,
   });
-}
-
-function addressText(order: ShopifyOrder): string {
-  const a = order.shippingAddress;
-  if (!a) throw new Error(`Order #${order.orderNumber} has no shipping address.`);
-  // Truncate to 200 chars (InstaWorld spec maxLength: 200)
-  const full = [a.address1, a.address2, a.city, a.province, a.zip, a.country]
-    .filter(Boolean)
-    .join(", ");
-  return truncate(full, 200);
 }
 
 /**
@@ -58,6 +49,7 @@ function buildRequest(
   combined: ReturnType<typeof combineOrders>,
   orders: ShopifyOrder[],
   refNo: string,
+  locationId: number,
 ): InstaWorldRequest {
   const consigneeName = combined.consignee.name || "";
   const {first_name, last_name} = splitName(consigneeName);
@@ -73,7 +65,7 @@ function buildRequest(
 
   return {
     refNo,
-    locationId: Number(process.env.INSTAWORLD_LOCATION_ID || 16917),
+    locationId,
     remarks: "allow to open",
     payment: {
       type: getPaymentType(combined.payment.treatment),
@@ -84,7 +76,19 @@ function buildRequest(
       ...(last_name ? {last_name} : {}),
       phone,
       city,
-      address: addressText(orders[0]),
+      address: truncate(
+        [
+          combined.consignee.address1,
+          combined.consignee.address2,
+          combined.consignee.city,
+          combined.consignee.province,
+          combined.consignee.zip,
+          combined.consignee.country,
+        ]
+          .filter(Boolean)
+          .join(", "),
+        200,
+      ),
       email,
     },
     items: combined.items.map((item) => ({
@@ -105,6 +109,7 @@ export async function bookCombinedOrders(
   declaredWeight: number,
   admin?: unknown,
 ) {
+  const config = requireInstaWorldConfig(shop);
   const combined = combineOrders(orders, declaredWeight);
   const addressVerification = await verifyDeliveryAddress(combined.consignee);
   if (!addressVerification.ok) {
@@ -125,10 +130,10 @@ export async function bookCombinedOrders(
   const idempotencyKey = randomUUID();
   // Use Shopify order number(s) as the human-readable refNo (e.g. "1006" or "1006+1007")
   const orderNumbers = orders.map((o) => o.orderNumber).join("+");
-  const prefix = process.env.INSTAWORLD_REF_PREFIX || "";
+  const prefix = config.refPrefix;
   const refNo = `${prefix}${orderNumbers}`.slice(0, 200);
   const leaseExpiresAt = new Date(Date.now() + RESERVATION_LEASE_MS);
-  const requestPayload = buildRequest(verifiedCombined, orders, refNo);
+  const requestPayload = buildRequest(verifiedCombined, orders, refNo, config.locationId!);
 
   const attempt = await prisma.$transaction(async (tx) => {
     const existing = await tx.shipmentOrder.findFirst({
@@ -182,7 +187,7 @@ export async function bookCombinedOrders(
   });
 
   try {
-    const existing = await findShipmentByReference(refNo);
+    const existing = await findShipmentByReference(refNo, shop);
     if (existing) {
       return await finalizeSuccessfulBooking(shop, attempt.id, existing.trackingNumber, orders, admin);
     }
@@ -196,7 +201,7 @@ export async function bookCombinedOrders(
       data: {status: "submitting"},
     });
 
-    const result = await createShipment(requestPayload, idempotencyKey);
+    const result = await createShipment(requestPayload, idempotencyKey, shop);
     return await finalizeSuccessfulBooking(shop, attempt.id, result.trackingNumber, orders, admin);
   } catch (error) {
     const status = typeof error === "object" && error && "status" in error ? Number(error.status) : null;
@@ -262,7 +267,7 @@ export async function recoverBookingAttempt(shop: string, attemptId: string) {
     id: reservation.shopifyOrderId,
     orderNumber: reservation.shopifyOrderId,
   }));
-  const existing = await findShipmentByReference(attempt.shipment.refNo);
+  const existing = await findShipmentByReference(attempt.shipment.refNo, shop);
   if (existing) {
     return finalizeSuccessfulBooking(shop, attemptId, existing.trackingNumber, sourceOrders);
   }
@@ -270,6 +275,7 @@ export async function recoverBookingAttempt(shop: string, attemptId: string) {
   const result = await createShipment(
     JSON.parse(attempt.requestPayload) as InstaWorldRequest,
     attempt.idempotencyKey,
+    shop,
   );
   return finalizeSuccessfulBooking(shop, attemptId, result.trackingNumber, sourceOrders);
 }
