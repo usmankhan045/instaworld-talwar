@@ -1,6 +1,8 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import {PRODUCT_COLORS_BY_HANDLE} from "./product-colors.server";
+
 type ShopifyAdminGraphql = {
   graphql: (
     query: string,
@@ -106,6 +108,7 @@ const ORDER_FIELDS = `
         sku
         quantity
         product {
+          handle
           color: metafield(namespace: "custom", key: "color") {
             value
           }
@@ -183,7 +186,12 @@ function parseOrder(node: any): ShopifyOrder {
         title: String(item.title || "Product"),
         sku: item.sku ?? null,
         quantity: Number(item.quantity),
-        color: item.product?.color?.value ? String(item.product.color.value) : null,
+        color:
+          (item.product?.color?.value
+            ? String(item.product.color.value)
+            : item.product?.handle
+              ? PRODUCT_COLORS_BY_HANDLE[String(item.product.handle)]
+              : null) ?? null,
         unitPrice: shopMoney(item.originalUnitPriceSet),
         totalPrice: shopMoney(item.discountedTotalSet),
       }),

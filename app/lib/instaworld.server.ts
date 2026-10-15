@@ -32,7 +32,7 @@ export type InstaWorldRequest = {
     city: string;
     email?: string;
   };
-  items: Array<{title?: string; sku?: string | null; productDetail?: string; quantity: number; kg: number; price?: number}>;
+  items: Array<{title?: string; sku?: string | null; product_detail?: string; quantity: number; kg: number; price?: number}>;
 };
 
 // ---------------------------------------------------------------------------

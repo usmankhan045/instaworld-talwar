@@ -95,7 +95,7 @@ function buildRequest(
       title: item.title ? truncate(item.title, 100) : undefined,
       sku: item.sku ?? undefined,
       // Color from the product's custom.color metafield (set in Shopify admin)
-      productDetail: item.color ?? undefined,
+      product_detail: item.color ?? undefined,
       quantity: item.quantity,
       // Fixed 0.8 kg per line item regardless of quantity
       kg: 0.8,

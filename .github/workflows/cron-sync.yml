@@ -10,33 +10,43 @@ jobs:
     steps:
       - name: Trigger Vercel API Sync
         run: |
+          set -euo pipefail
+
           echo "🚀 Running InstaWorld sync via GitHub Actions..."
           echo "📍 Target URL: ${{ secrets.VERCEL_DEPLOYMENT_URL }}/api/instaworld-sync"
           echo "⏰ Scheduled at: $(date)"
           echo "🆔 GitHub Run ID: ${{ github.run_id }}"
-          
-          # Trigger the Vercel API endpoint
-          RESPONSE=$(curl --silent --show-error --retry 2 --retry-delay 5 -w "%{http_code}" \
+
+          BODY_FILE=$(mktemp)
+          trap 'rm -f "$BODY_FILE"' EXIT
+
+          # Keep the response body separate from curl's HTTP status output.
+          HTTP_CODE=$(curl --silent --show-error --retry 2 --retry-delay 5 \
+            --output "$BODY_FILE" \
+            --write-out "%{http_code}" \
             -X GET \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -H "X-GitHub-Token: ${{ secrets.ACTIONS_GITHUB_TOKEN }}" \
             -H "X-GitHub-Run-ID: ${{ github.run_id }}" \
-            "${{ secrets.VERCEL_DEPLOYMENT_URL }}/api/instaworld-sync" \
-            --data '{}')
-          
-          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-          BODY=$(echo "$RESPONSE" | head -n -1)
+            "${{ secrets.VERCEL_DEPLOYMENT_URL }}/api/instaworld-sync")
+          BODY=$(cat "$BODY_FILE")
           
           echo "📊 HTTP Response Code: $HTTP_CODE"
           echo "📋 Response Body: $BODY"
           
-          if [ "$HTTP_CODE" -eq 200 ]; then
-            echo "✅ Sync completed successfully!"
-          else
+          if [ "$HTTP_CODE" != "200" ]; then
             echo "❌ Sync failed with HTTP $HTTP_CODE"
             echo "Error response: $BODY"
             exit 1
           fi
+
+          if ! echo "$BODY" | jq -e '.ok == true and ((.errors // []) | length == 0)' >/dev/null; then
+            echo "❌ Sync completed with application errors"
+            echo "Error response: $BODY"
+            exit 1
+          fi
+
+          echo "✅ Sync completed successfully!"
         env:
           INSTAWORLD_API_KEY: ${{ secrets.INSTAWORLD_API_KEY }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}

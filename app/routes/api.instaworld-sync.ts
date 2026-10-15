@@ -117,6 +117,7 @@ export async function loader({request}: LoaderFunctionArgs) {
       const {shop} = session;
 
       try {
+        const shopErrorCountBefore = errors.length;
         // Load or create SyncState for this shop
         const syncState = await prisma.syncState.upsert({
           where: {shop},
@@ -214,8 +215,11 @@ export async function loader({request}: LoaderFunctionArgs) {
           }
         }
 
-        // Update last sync time for this shop
-        await prisma.syncState.update({where: {shop}, data: {lastSyncedAt: syncStart}});
+        // Only advance the cursor after every shipment in this window has
+        // synced. Failed shipments must remain eligible for the next cron run.
+        if (errors.length === shopErrorCountBefore) {
+          await prisma.syncState.update({where: {shop}, data: {lastSyncedAt: syncStart}});
+        }
       } catch (shopError) {
         const msg = `Shop ${shop}: ${shopError instanceof Error ? shopError.message : String(shopError)}`;
         errors.push(msg);
@@ -228,10 +232,10 @@ export async function loader({request}: LoaderFunctionArgs) {
   }
 
   return jsonResp({
-    ok: true,
+    ok: errors.length === 0,
     durationMs: Date.now() - startTime,
     processed: totalProcessed,
     updated: totalUpdated,
     errors,
-  });
+  }, errors.length === 0 ? 200 : 500);
 }
