@@ -39,6 +39,7 @@ export type ShopifyOrder = {
     country: string | null;
     countryCode: string | null;
   } | null;
+  courier?: "TCS" | "POSTEX" | null;
   lineItems: Array<{
     id: string;
     title: string;
@@ -100,6 +101,10 @@ const ORDER_FIELDS = `
     country
     countryCodeV2
   }
+  customAttributes {
+    key
+    value
+  }
   lineItems(first: 250) {
     edges {
       node {
@@ -154,6 +159,10 @@ function parseOrder(node: any): ShopifyOrder {
     currencyCode: String(value?.shopMoney?.currencyCode ?? ""),
   });
 
+  const courierValue = String(
+    node.customAttributes?.find((attribute: any) => attribute.key === "delivery_courier")?.value || "",
+  ).toUpperCase();
+
   return {
     id: String(node.id),
     orderNumber: String(node.name).replace(/^#/, ""),
@@ -180,6 +189,7 @@ function parseOrder(node: any): ShopifyOrder {
           countryCode: node.shippingAddress.countryCodeV2 ?? null,
         }
       : null,
+    courier: courierValue === "TCS" || courierValue === "POSTEX" ? courierValue : null,
     lineItems: (node.lineItems?.edges ?? []).map(
       ({ node: item }: any) => ({
         id: String(item.id),

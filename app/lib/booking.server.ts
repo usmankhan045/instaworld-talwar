@@ -71,7 +71,7 @@ function buildRequest(
   return {
     refNo,
     locationId,
-    remarks: "allow to open",
+    remarks: `allow to open; courier: ${combined.courier || "UNSELECTED"}`,
     payment: {
       type: getPaymentType(combined.payment.treatment),
       amount: combined.payment.amountDue,
@@ -114,6 +114,9 @@ export async function bookCombinedOrders(
   // shipment weight regardless of line count or product quantity.
   const declaredWeight = FIXED_SHIPMENT_WEIGHT_KG;
   const combined = combineOrders(orders, declaredWeight);
+  if (!combined.courier) {
+    throw new Error("Select TCS or PostEx in checkout before booking this order.");
+  }
   const addressVerification = await verifyDeliveryAddress(combined.consignee);
   if (!addressVerification.ok) {
     throw new Error(addressVerification.message);

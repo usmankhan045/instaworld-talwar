@@ -98,6 +98,24 @@ test("rejects mixed COD and prepaid treatment", () => {
   );
 });
 
+test("rejects combining orders that selected different couriers", () => {
+  assert.throws(
+    () => combineOrders([
+      order({id: "1", courier: "TCS"}),
+      order({id: "2", courier: "POSTEX"}),
+    ]),
+    /different couriers.*Book them separately/,
+  );
+});
+
+test("keeps the selected courier on a combined shipment", () => {
+  const combined = combineOrders([
+    order({id: "1", courier: "POSTEX"}),
+    order({id: "2"}),
+  ]);
+  assert.equal(combined.courier, "POSTEX");
+});
+
 test("accepts a merchant-adjusted positive weight", () => {
   const combined = combineOrders([order({id: "1"}), order({id: "2"})], 3.25);
   assert.equal(combined.defaultWeight, 1.6);

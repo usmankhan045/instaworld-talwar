@@ -1,3 +1,4 @@
 {
-  "admin.order-details.action.render": {}
+  "admin.order-details.action.render": {},
+  "admin.order-index.selection-action.render": {}
 }
