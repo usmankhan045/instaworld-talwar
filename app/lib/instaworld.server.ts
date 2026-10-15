@@ -266,6 +266,18 @@ function extractErrorMessage(payload: any, status: number): string {
 
   // Field-level validation errors → list them clearly
   if (Array.isArray(err.details) && err.details.length > 0) {
+    const detailText = err.details
+      .map((d: any) => `${d.field ?? ""} ${d.issue ?? ""}`.toLowerCase())
+      .join("; ");
+    if (detailText.includes("location_id") && detailText.includes("not_owned")) {
+      return "The configured InstaWorld location does not belong to this account. Check the test account's location ID.";
+    }
+    if (detailText.includes("city") && detailText.includes("not_serviceable")) {
+      return "InstaWorld does not deliver to this city.";
+    }
+    if (detailText.includes("phone") && detailText.includes("invalid")) {
+      return "The customer's phone number is invalid. Update the order phone number.";
+    }
     const fieldErrors = err.details
       .map((d: any) => (d.field ? `${d.field}: ${d.issue ?? "invalid"}` : d.issue ?? JSON.stringify(d)))
       .join("; ");

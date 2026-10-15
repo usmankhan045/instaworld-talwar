@@ -131,11 +131,10 @@ export async function bookCombinedOrders(
   // Use Shopify order number(s) as the human-readable refNo (e.g. "1006" or "1006+1007")
   const orderNumbers = orders.map((o) => o.orderNumber).join("+");
   const prefix = config.refPrefix;
-  const refNo = `${prefix}${orderNumbers}`.slice(0, 200);
+  const baseRefNo = `${prefix}${orderNumbers}`.slice(0, 200);
   const leaseExpiresAt = new Date(Date.now() + RESERVATION_LEASE_MS);
-  const requestPayload = buildRequest(verifiedCombined, orders, refNo, config.locationId!);
 
-  const attempt = await prisma.$transaction(async (tx) => {
+  const {attempt, refNo, requestPayload} = await prisma.$transaction(async (tx) => {
     const existing = await tx.shipmentOrder.findFirst({
       where: {shop, shopifyOrderId: {in: combined.orderIds}},
       select: {shopifyOrderNumber: true},
@@ -144,6 +143,17 @@ export async function bookCombinedOrders(
       throw new Error(`Order #${existing.shopifyOrderNumber} is already booked.`);
     }
 
+    // Failed attempts remain in the database for auditability. Reuse the
+    // readable reference for the first attempt, then add a retry suffix so a
+    // later retry cannot collide with the failed reservation.
+    const previousReference = await tx.shipment.findUnique({
+      where: {shipment_shop_refNo_key: {shop, refNo: baseRefNo}},
+      select: {id: true},
+    });
+    const refNo = previousReference
+      ? `${baseRefNo.slice(0, 188)}-R${randomUUID().slice(0, 8)}`
+      : baseRefNo;
+    const requestPayload = buildRequest(verifiedCombined, orders, refNo, config.locationId!);
     const shipment = await tx.shipment.create({
       data: {
         shop,
@@ -183,7 +193,7 @@ export async function bookCombinedOrders(
     } catch {
       throw new Error("One or more orders are already reserved by another booking operation.");
     }
-    return bookingAttempt;
+    return {attempt: bookingAttempt, refNo, requestPayload};
   });
 
   try {

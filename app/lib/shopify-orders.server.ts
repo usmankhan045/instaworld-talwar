@@ -61,6 +61,9 @@ export function formatShopifyError(error: unknown): string {
   if (/access denied/i.test(message)) {
     return `Shopify permission missing: ${message}`;
   }
+  if (/unique constraint failed.*shop.*refno/i.test(message)) {
+    return "This order already has a previous booking attempt. Retrying with a new booking reference.";
+  }
   return message;
 }
 
