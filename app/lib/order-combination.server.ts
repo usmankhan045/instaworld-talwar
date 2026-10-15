@@ -136,7 +136,11 @@ export function combineOrders(
   const itemMap = new Map<string, CombinedOrder["items"][number]>();
   for (const order of orders) {
     for (const item of order.lineItems) {
-      const key = `${item.sku ?? ""}:${item.title}`;
+      // Keep products with the same title/SKU separate when their Shopify
+      // product colors differ, so each InstaWorld line item retains the
+      // correct Product Detail value.
+      const color = item.color?.trim() || null;
+      const key = `${item.sku ?? ""}:${item.title}:${color ?? ""}`;
       const existing = itemMap.get(key);
       if (existing) {
         existing.quantity += item.quantity;
@@ -146,7 +150,7 @@ export function combineOrders(
           key,
           title: item.title,
           sku: item.sku,
-          color: item.color ?? null,
+          color,
           quantity: item.quantity,
           sourceOrderIds: [order.id],
         });

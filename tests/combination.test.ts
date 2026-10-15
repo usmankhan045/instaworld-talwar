@@ -102,3 +102,22 @@ test("accepts a merchant-adjusted positive weight", () => {
   const combined = combineOrders([order({id: "1"}), order({id: "2"})], 3.25);
   assert.equal(combined.defaultWeight, 1.6);
 });
+
+test("keeps same-title products with different colors as separate items", () => {
+  const combined = combineOrders([
+    order({
+      id: "1",
+      lineItems: [{...order().lineItems[0], color: "Olive Green"}],
+    }),
+    order({
+      id: "2",
+      lineItems: [{...order().lineItems[0], color: "Charcoal Grey"}],
+    }),
+  ]);
+
+  assert.equal(combined.items.length, 2);
+  assert.deepEqual(
+    combined.items.map((item) => item.color),
+    ["Olive Green", "Charcoal Grey"],
+  );
+});
