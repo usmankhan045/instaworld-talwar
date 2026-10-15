@@ -243,6 +243,18 @@ export function validateReference(refNo: string | null) {
   }
 }
 
+/**
+ * InstaWorld's legacy invoice pipeline can misread raw UTF-8 request bytes as
+ * Latin-1. Escaping non-ASCII characters keeps the HTTP JSON payload ASCII,
+ * while the JSON parser reconstructs the original Unicode text (including
+ * Urdu) before it is stored/rendered.
+ */
+export function stringifyForInstaWorld(value: unknown): string {
+  return JSON.stringify(value).replace(/[\u0080-\uFFFF]/g, (character) =>
+    `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  );
+}
+
 async function request(path: string, config: InstaWorldConfig, init?: RequestInit) {
   if (!config.apiKey) throw new Error(`InstaWorld ${config.account} API key is not configured.`);
   return fetch(`${config.baseUrl}${path}`, {
@@ -340,7 +352,7 @@ export async function createShipment(
   const response = await request("/shipments", config, {
     method: "POST",
     headers: {"Idempotency-Key": idempotencyKey},
-    body: JSON.stringify(body),
+    body: stringifyForInstaWorld(body),
   });
   const payload = await response.json().catch(() => ({}));
 
