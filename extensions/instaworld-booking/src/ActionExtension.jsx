@@ -49,8 +49,12 @@ async function readApiResponse(response, fallbackMessage) {
     const rawMessage = String(payload.message || fallbackMessage)
       .replace(/^[^:]{2,80} failed:\s*/i, "")
       .replace(/\s*\[[A-Z_]+\]\s*\(HTTP \d+\)$/i, "");
+    const orderNumbers = Array.isArray(payload.orderNumbers)
+      ? payload.orderNumbers
+      : Object.values(payload.orderNumbers || {});
     const error = new Error(messages[payload.code] || rawMessage);
-    error.orderNumber = payload.orderNumber || Object.values(payload.orderNumbers || {})[0] || "";
+    error.orderNumbers = [...new Set([payload.orderNumber, ...orderNumbers].filter(Boolean))];
+    error.orderNumber = error.orderNumbers[0] || "";
     throw error;
   }
   return payload;
@@ -117,9 +121,15 @@ function Extension() {
       // Weight is always fixed at 0.8 kg
       setCityWarning(payload.cityWarning || "");
     } catch (previewError) {
+      const orderNumbers = previewError?.orderNumbers || [];
       const orderNumber = previewError?.orderNumber || selectedOrders.find((order) => order.id === currentOrderId)?.orderNumber;
       if (orderNumber) setSelectedOrders([{id: currentOrderId, orderNumber}]);
-      setError(`${orderNumber ? `Order #${orderNumber}: ` : ""}${previewError instanceof Error ? previewError.message : "Unable to validate this order."}`);
+      const orderLabel = orderNumbers.length > 1
+        ? `Orders ${orderNumbers.map((number) => `#${number}`).join(", ")}: `
+        : orderNumber
+          ? `Order #${orderNumber}: `
+          : "";
+      setError(`${orderLabel}${previewError instanceof Error ? previewError.message : "Unable to validate this order."}`);
       setCombined(null);
       setVerifiedAddress(null);
     } finally {
@@ -180,11 +190,24 @@ function Extension() {
         body: JSON.stringify({orderIds: selectedOrderIds, declaredWeight: 0.8}),
       });
       const payload = await readApiResponse(response, "Booking failed.");
-      if (!payload.success) throw new Error(payload?.message || "Booking failed.");
+      if (!payload.success) {
+        const bookingFailure = new Error(payload?.message || "Booking failed.");
+        bookingFailure.orderNumbers = Array.isArray(payload.orderNumbers)
+          ? payload.orderNumbers
+          : Object.values(payload.orderNumbers || {});
+        bookingFailure.orderNumber = payload.orderNumber || bookingFailure.orderNumbers[0] || "";
+        throw bookingFailure;
+      }
       setMessage(`Shipment booked successfully. Tracking number: ${payload.trackingNumber}`);
     } catch (bookingError) {
+      const orderNumbers = bookingError?.orderNumbers || [];
       const orderNumber = bookingError?.orderNumber || selectedOrders.find((order) => order.id === currentOrderId)?.orderNumber;
-      setError(`${orderNumber ? `Order #${orderNumber}: ` : ""}${bookingError instanceof Error ? bookingError.message : "Booking failed."}`);
+      const orderLabel = orderNumbers.length > 1
+        ? `Orders ${orderNumbers.map((number) => `#${number}`).join(", ")}: `
+        : orderNumber
+          ? `Order #${orderNumber}: `
+          : "";
+      setError(`${orderLabel}${bookingError instanceof Error ? bookingError.message : "Booking failed."}`);
     } finally {
       setSubmitting(false);
     }

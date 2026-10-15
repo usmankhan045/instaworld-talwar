@@ -30,8 +30,12 @@ async function readApiResponse(response, fallbackMessage, allowedErrorStatuses =
     const rawMessage = String(payload.message || fallbackMessage)
       .replace(/^[^:]{2,80} failed:\s*/i, "")
       .replace(/\s*\[[A-Z_]+\]\s*\(HTTP \d+\)$/i, "");
+    const orderNumbers = Array.isArray(payload.orderNumbers)
+      ? payload.orderNumbers
+      : Object.values(payload.orderNumbers || {});
     const error = new Error(messages[payload.code] || rawMessage);
-    error.orderNumber = payload.orderNumber || Object.values(payload.orderNumbers || {})[0] || "";
+    error.orderNumbers = [...new Set([payload.orderNumber, ...orderNumbers].filter(Boolean))];
+    error.orderNumber = error.orderNumbers[0] || "";
     throw error;
   }
   return payload;
