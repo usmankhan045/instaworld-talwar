@@ -76,6 +76,29 @@ test("does not reject an incomplete local address because a geocoder chose anoth
   if (result.ok) assert.match(result.verifiedAddress.warning || "", /different nearby area/);
 });
 
+test("accepts a city-confirming result for an incomplete sector address", () => {
+  const result = validateGeocodeCandidate(
+    {
+      display_name: "G-11, Islamabad, Pakistan",
+      address: {
+        suburb: "G-11",
+        city: "Islamabad",
+        country: "Pakistan",
+        country_code: "pk",
+      },
+    },
+    {
+      address1: "House 13, G-11 Sector 3",
+      city: "Islamabad",
+      country: "Pakistan",
+      countryCode: "PK",
+    },
+  );
+
+  assert.equal(result.ok, true);
+  if (result.ok) assert.equal(result.verifiedAddress.city, "Islamabad");
+});
+
 test("keeps a city explicitly named in the customer address when the provider chooses a nearby area", () => {
   const result = validateGeocodeCandidate(
     {

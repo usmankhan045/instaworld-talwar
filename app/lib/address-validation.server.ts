@@ -187,6 +187,21 @@ function cityFromCandidateText(candidate: GeocodeCandidate, requestedCity: strin
   return textMatch || extractCity(address, requestedCity);
 }
 
+function cityEvidenceRank(candidate: GeocodeCandidate, requestedCity: string): number {
+  const address = candidate.address ?? {};
+  const primaryNames = [address.city, address.town, address.municipality]
+    .filter((value): value is string => Boolean(value?.trim()));
+  if (primaryNames.length > 0) {
+    return primaryNames.some((name) => cityMatches(name, requestedCity)) ? 4 : 0;
+  }
+
+  const secondaryNames = [address.county, address.state_district, address.village, address.suburb]
+    .filter((value): value is string => Boolean(value?.trim()));
+  if (secondaryNames.some((name) => cityMatches(name, requestedCity))) return 3;
+  if (textMentionsCity(candidate.display_name || "", requestedCity)) return 2;
+  return 1;
+}
+
 function candidateMatchesCity(address: AddressComponents, selectedCity: string): boolean {
   const primaryNames = [address.city, address.town, address.municipality]
     .filter((value): value is string => Boolean(value?.trim()));
@@ -562,8 +577,16 @@ export async function verifyDeliveryAddress(
     };
   }
 
+  // Geocoders frequently return a nearby locality for the detailed query and
+  // the correct city for the later city-only query. Always evaluate the city
+  // evidence first so the nearby result cannot win merely because it arrived
+  // earlier in the response list.
+  const orderedCandidates = [...candidates].sort(
+    (left, right) => cityEvidenceRank(right.candidate, city) - cityEvidenceRank(left.candidate, city),
+  );
+
   let bestFailure: AddressVerificationResult | null = null;
-  for (const {candidate, source} of candidates) {
+  for (const {candidate, source} of orderedCandidates) {
     const result = candidateResult(candidate, source, input);
     if (result.ok) return result;
     if (!bestFailure || result.code === "POSTAL_CODE_MISMATCH" || result.code === "ADDRESS_CITY_MISMATCH") {
