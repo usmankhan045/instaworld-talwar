@@ -52,7 +52,7 @@ function BulkBookExtension() {
   const [results, setResults] = useState(
     selectedOrders.map((o) => ({
       orderId: o.id,
-      orderNumber: o.orderNumber || o.name?.replace(/^#/, "") || o.id,
+      orderNumber: o.orderNumber || o.name?.replace(/^#/, "") || "Order number unavailable",
       status: "pending",
     })),
   );
@@ -90,7 +90,7 @@ function BulkBookExtension() {
           const existing = previewPayload?.existing?.[0];
           updateResult(orderId, {
             status: "skipped",
-            orderNumber: previewPayload?.existing?.[0]?.shopifyOrderNumber || orderId,
+            orderNumber: previewPayload?.existing?.[0]?.shopifyOrderNumber || "Order number unavailable",
             message: `This order is already booked (shipment #${existing?.shipmentId ?? "unknown"}).`,
           });
           continue;
@@ -100,7 +100,7 @@ function BulkBookExtension() {
         if (previewPayload.cityWarning) {
           updateResult(orderId, {
             status: "skipped",
-            orderNumber: previewPayload.combined?.orders?.[0]?.orderNumber || orderId,
+            orderNumber: previewPayload.combined?.orders?.[0]?.orderNumber || "Order number unavailable",
             message: previewPayload.cityWarning,
           });
           continue;
@@ -112,7 +112,7 @@ function BulkBookExtension() {
           continue;
         }
 
-        const orderNumber = combined.orders?.[0]?.orderNumber || orderId;
+        const orderNumber = combined.orders?.[0]?.orderNumber || "Order number unavailable";
         updateResult(orderId, {orderNumber});
 
         // Step 2: book

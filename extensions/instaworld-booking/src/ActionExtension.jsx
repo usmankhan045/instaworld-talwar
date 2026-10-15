@@ -220,7 +220,7 @@ function Extension() {
         {selectedOrderIds.map((orderId, index) => (
           <s-stack key={orderId} direction="inline" gap="base">
             <s-text>
-              #{selectedOrders.find((order) => order.id === orderId)?.orderNumber || orderId}
+              #{selectedOrders.find((order) => order.id === orderId)?.orderNumber || "Order number unavailable"}
               {index === 0 ? " (current order)" : ""}
             </s-text>
             {index > 0 && <s-button onClick={() => removeOrder(orderId)}>Remove</s-button>}
