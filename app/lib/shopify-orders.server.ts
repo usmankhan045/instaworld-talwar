@@ -53,6 +53,17 @@ type GraphqlResponse<T> = {
   errors?: Array<{ message: string }>;
 };
 
+export function formatShopifyError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/access denied for product field/i.test(message)) {
+    return "Shopify permission missing: this app cannot read product details for this order. Grant the read_products permission and reinstall the app.";
+  }
+  if (/access denied/i.test(message)) {
+    return `Shopify permission missing: ${message}`;
+  }
+  return message;
+}
+
 const ORDER_FIELDS = `
   id
   name
@@ -207,6 +218,36 @@ export async function getShopifyOrders(
   }
 
   return nodes.map(parseOrder);
+}
+
+/**
+ * Fetch only human-readable order numbers for error responses. This fallback
+ * intentionally does not request product data, so permission errors can still
+ * be reported against the correct order number.
+ */
+export async function getShopifyOrderNumbers(
+  admin: ShopifyAdminGraphql,
+  orderIds: string[],
+): Promise<Record<string, string>> {
+  const result = await admin.graphql(
+    `#graphql
+      query OrderNumbersById($ids: [ID!]!) {
+        nodes(ids: $ids) {
+          ... on Order {
+            id
+            name
+          }
+        }
+      }
+    `,
+    { variables: { ids: orderIds } },
+  );
+  const payload = (await result.json()) as GraphqlResponse<{nodes: Array<{id?: string; name?: string} | null>}>;
+  const numbers: Record<string, string> = {};
+  for (const node of payload.data?.nodes ?? []) {
+    if (node?.id && node.name) numbers[node.id] = String(node.name).replace(/^#/, "");
+  }
+  return numbers;
 }
 
 export async function searchShopifyOrders(

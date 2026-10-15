@@ -44,7 +44,9 @@ async function readApiResponse(response, fallbackMessage) {
     const suggestion = payload.suggestedAddress
       ? ` Suggested provider result: ${payload.suggestedAddress}`
       : "";
-    throw new Error(`${stage}${payload.message || fallbackMessage}${suggestion}${code} (HTTP ${response.status})`);
+    const error = new Error(`${stage}${payload.message || fallbackMessage}${suggestion}${code} (HTTP ${response.status})`);
+    error.orderNumber = payload.orderNumber || Object.values(payload.orderNumbers || {})[0] || "";
+    throw error;
   }
   return payload;
 }
@@ -110,7 +112,8 @@ function Extension() {
       // Weight is always fixed at 0.8 kg
       setCityWarning(payload.cityWarning || "");
     } catch (previewError) {
-      setError(previewError instanceof Error ? previewError.message : "Unable to validate orders.");
+      const orderNumber = previewError?.orderNumber || selectedOrders.find((order) => order.id === currentOrderId)?.orderNumber;
+      setError(`${orderNumber ? `Order #${orderNumber}: ` : ""}${previewError instanceof Error ? previewError.message : "Unable to validate this order."}`);
       setCombined(null);
       setVerifiedAddress(null);
     } finally {
@@ -174,7 +177,8 @@ function Extension() {
       if (!payload.success) throw new Error(payload?.message || "Booking failed.");
       setMessage(`Shipment booked successfully. Tracking number: ${payload.trackingNumber}`);
     } catch (bookingError) {
-      setError(bookingError instanceof Error ? bookingError.message : "Booking failed.");
+      const orderNumber = bookingError?.orderNumber || selectedOrders.find((order) => order.id === currentOrderId)?.orderNumber;
+      setError(`${orderNumber ? `Order #${orderNumber}: ` : ""}${bookingError instanceof Error ? bookingError.message : "Booking failed."}`);
     } finally {
       setSubmitting(false);
     }

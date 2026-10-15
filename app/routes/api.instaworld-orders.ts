@@ -5,7 +5,9 @@ import prisma from "../db.server";
 import { combineOrders } from "../lib/order-combination.server";
 import {
   getShopifyOrders,
+  getShopifyOrderNumbers,
   searchShopifyOrders,
+  formatShopifyError,
 } from "../lib/shopify-orders.server";
 import { normaliseCity, requireInstaWorldConfig } from "../lib/instaworld.server";
 import { verifyDeliveryAddress } from "../lib/address-validation.server";
@@ -23,11 +25,6 @@ function json(data: unknown, init?: ResponseInit) {
     },
   });
 }
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 
 // ---------------------------------------------------------------------------
 // City serviceability check (cached for 1 hour, fail-open)
@@ -93,6 +90,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 export async function action({ request }: ActionFunctionArgs) {
   let stage = "request validation";
+  let admin: Awaited<ReturnType<typeof authenticate.admin>>["admin"] | undefined;
+  let orderIds: string[] = [];
 
   try {
     if (request.method !== "POST") {
@@ -103,12 +102,14 @@ export async function action({ request }: ActionFunctionArgs) {
     }
 
     stage = "Shopify authentication";
-    const { admin, session } = await authenticate.admin(request);
+    const auth = await authenticate.admin(request);
+    admin = auth.admin;
+    const {session} = auth;
 
     stage = "request body parsing";
     const body = await request.json().catch(() => null);
 
-    const orderIds = Array.isArray(body?.orderIds)
+    orderIds = Array.isArray(body?.orderIds)
       ? body.orderIds.filter(
           (id: unknown): id is string => typeof id === "string",
         )
@@ -166,6 +167,8 @@ export async function action({ request }: ActionFunctionArgs) {
         {
           code: addressVerification.code,
           stage,
+          orderNumber: combined.orders.length === 1 ? combined.orders[0].orderNumber : undefined,
+          orderNumbers: combined.orders.map((order) => order.orderNumber),
           message: addressVerification.message,
           detectedCity: addressVerification.detectedCity,
           suggestedAddress: addressVerification.suggestedAddress,
@@ -189,10 +192,13 @@ export async function action({ request }: ActionFunctionArgs) {
       throw error;
     }
 
-    const message = errorMessage(error);
+    const orderNumbers: Record<string, string> = admin
+      ? await getShopifyOrderNumbers(admin, orderIds).catch(() => ({} as Record<string, string>))
+      : {};
+    const humanMessage = formatShopifyError(error);
     console.error("[InstaWorld orders API]", {
       stage,
-      message,
+      message: humanMessage,
       stack: error instanceof Error ? error.stack : undefined,
     });
 
@@ -200,7 +206,9 @@ export async function action({ request }: ActionFunctionArgs) {
       {
         code: "ORDER_PREVIEW_FAILED",
         stage,
-        message: `${stage} failed: ${message}`,
+        orderNumbers,
+        orderNumber: orderIds.length === 1 ? orderNumbers[orderIds[0]] : undefined,
+        message: `${stage} failed: ${humanMessage}`,
       },
       { status: 500 },
     );

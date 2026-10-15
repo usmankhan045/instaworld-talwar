@@ -25,7 +25,9 @@ async function readApiResponse(response, fallbackMessage, allowedErrorStatuses =
     const suggestion = payload.suggestedAddress
       ? ` Suggested provider result: ${payload.suggestedAddress}`
       : "";
-    throw new Error(`${stage}${payload.message || fallbackMessage}${suggestion}${code} (HTTP ${response.status})`);
+    const error = new Error(`${stage}${payload.message || fallbackMessage}${suggestion}${code} (HTTP ${response.status})`);
+    error.orderNumber = payload.orderNumber || Object.values(payload.orderNumbers || {})[0] || "";
+    throw error;
   }
   return payload;
 }
@@ -45,7 +47,7 @@ function BulkBookExtension() {
   const [results, setResults] = useState(
     selectedOrders.map((o) => ({
       orderId: o.id,
-      orderNumber: o.id,
+      orderNumber: o.orderNumber || o.name?.replace(/^#/, "") || o.id,
       status: "pending",
     })),
   );
@@ -84,7 +86,7 @@ function BulkBookExtension() {
           updateResult(orderId, {
             status: "skipped",
             orderNumber: previewPayload?.existing?.[0]?.shopifyOrderNumber || orderId,
-            message: `Already booked (shipment #${existing?.shipmentId ?? "?"}).`,
+            message: `This order is already booked (shipment #${existing?.shipmentId ?? "unknown"}).`,
           });
           continue;
         }
@@ -101,7 +103,7 @@ function BulkBookExtension() {
 
         const combined = previewPayload.combined;
         if (!combined) {
-          updateResult(orderId, {status: "error", message: "Could not load order data."});
+          updateResult(orderId, {status: "error", message: "Could not load this order’s details."});
           continue;
         }
 
@@ -133,7 +135,9 @@ function BulkBookExtension() {
           });
         }
       } catch (err) {
+        const orderNumber = err?.orderNumber;
         updateResult(orderId, {
+          ...(orderNumber ? {orderNumber} : {}),
           status: "error",
           message: err instanceof Error ? err.message : "Unexpected error while processing this order.",
         });
@@ -171,15 +175,19 @@ function BulkBookExtension() {
                 {r.status === "booking" ? " — booking…" : ""}
                 {r.status === "booked" ? ` — ✓ Booked (${r.trackingNumber})` : ""}
                 {r.status === "skipped" ? ` — Skipped: ${r.message}` : ""}
-                {r.status === "error" ? ` — ✗ Error: ${r.message}` : ""}
               </s-text>
+              {r.status === "error" && (
+                <s-banner tone="critical">
+                  Order #{r.orderNumber}: {r.message}
+                </s-banner>
+              )}
             </s-stack>
           ))}
         </s-stack>
 
         {done && (
-          <s-banner tone={errors > 0 ? "warning" : "success"}>
-            Done — {booked} booked, {skipped} skipped, {errors} failed.
+          <s-banner tone={errors > 0 ? "critical" : skipped > 0 ? "warning" : "success"}>
+            {errors > 0 ? "Attention required — " : ""}Done — {booked} booked, {skipped} skipped, {errors} failed.
           </s-banner>
         )}
       </s-stack>

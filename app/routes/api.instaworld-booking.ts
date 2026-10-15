@@ -2,7 +2,7 @@ import type {ActionFunctionArgs, LoaderFunctionArgs} from "react-router";
 
 import prisma from "../db.server";
 import {bookCombinedOrders, recoverBookingAttempt} from "../lib/booking.server";
-import {getShopifyOrders} from "../lib/shopify-orders.server";
+import {formatShopifyError, getShopifyOrderNumbers, getShopifyOrders} from "../lib/shopify-orders.server";
 import {authenticate} from "../shopify.server";
 
 function json(data: unknown, init?: ResponseInit) {
@@ -16,10 +16,6 @@ function json(data: unknown, init?: ResponseInit) {
       ...(init?.headers || {}),
     },
   });
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 export async function loader({request}: LoaderFunctionArgs) {
@@ -102,7 +98,8 @@ export async function action({request}: ActionFunctionArgs) {
         success: false,
         code: "BOOKING_FAILED",
         stage,
-        message: `${stage} failed: ${errorMessage(error)}`,
+        orderNumbers: await getShopifyOrderNumbers(admin, orderIds).catch(() => ({})),
+        message: `${stage} failed: ${formatShopifyError(error)}`,
       },
       {status: 409},
     );
