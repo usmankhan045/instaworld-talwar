@@ -143,6 +143,34 @@ export async function bookCombinedOrders(
       throw new Error(`Order #${existing.shopifyOrderNumber} is already booked.`);
     }
 
+    const now = new Date();
+    await tx.orderReservation.updateMany({
+      where: {
+        shop,
+        shopifyOrderId: {in: combined.orderIds},
+        state: "active",
+        leaseExpiresAt: {lte: now},
+      },
+      data: {state: "released", releasedAt: now},
+    });
+    const activeReservations = await tx.orderReservation.findMany({
+      where: {
+        shop,
+        shopifyOrderId: {in: combined.orderIds},
+        state: "active",
+        leaseExpiresAt: {gt: now},
+      },
+      select: {shopifyOrderId: true},
+    });
+    if (activeReservations.length > 0) {
+      const activeIds = new Set(activeReservations.map((reservation) => reservation.shopifyOrderId));
+      const activeNumbers = orders
+        .filter((order) => activeIds.has(order.id))
+        .map((order) => `#${order.orderNumber}`)
+        .join(", ");
+      throw new Error(`${activeNumbers || "This order"} is already being booked. Wait for the current attempt to finish, then try again.`);
+    }
+
     // Failed attempts remain in the database for auditability. Reuse the
     // readable reference for the first attempt, then add a retry suffix so a
     // later retry cannot collide with the failed reservation.
@@ -191,7 +219,8 @@ export async function bookCombinedOrders(
         });
       }
     } catch {
-      throw new Error("One or more orders are already reserved by another booking operation.");
+      const orderNumbers = orders.map((order) => `#${order.orderNumber}`).join(", ");
+      throw new Error(`${orderNumbers} could not be reserved because another booking started at the same time. Try again.`);
     }
     return {attempt: bookingAttempt, refNo, requestPayload};
   });

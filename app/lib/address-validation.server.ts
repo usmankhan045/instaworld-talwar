@@ -228,12 +228,6 @@ function hasAddressEvidence(
   );
 }
 
-function isRuralAddress(input: DeliveryAddressInput): boolean {
-  const text = [input.address1, input.address2].filter(Boolean).join(" ");
-  return /\b(village|vill|v\/o|p\.?\s*o\.?|post office|tehsil|district|mauza|mohalla|chak|killi|kalay|cheena|near|opposite|beside|shop|store|school|college|mosque|masjid|market|hospital|petrol)\b/i.test(text) ||
-    !/\b\d{1,5}\b/.test(String(input.address1 || ""));
-}
-
 function originalAddress(input: DeliveryAddressInput): string {
   return [
     input.address1,
