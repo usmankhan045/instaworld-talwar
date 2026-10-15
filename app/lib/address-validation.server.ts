@@ -25,6 +25,7 @@ export type VerifiedAddress = {
   postalCode: string | null;
   source: "geocode.maps.co" | "nominatim";
   confidence: "street" | "locality";
+  warning?: string;
 };
 
 export type AddressVerificationResult =
@@ -323,12 +324,29 @@ function candidateResult(
   const inputZip = input.zip?.trim();
   const resultZip = resultAddress.postcode?.trim();
   if (inputZip && ((streetLevel && !resultZip) || (resultZip && !postalMatches(inputZip, resultZip)))) {
+    if (resultZip && !postalMatches(inputZip, resultZip)) {
+      return {
+        ok: true,
+        verifiedAddress: {
+          formattedAddress: originalAddress(input),
+          city: String(input.city).trim(),
+          province: extractProvince(resultAddress) || input.province?.trim() || null,
+          postalCode: inputZip,
+          source,
+          confidence: "locality",
+          warning:
+            `The map provider returned postal code ${resultZip}, while the customer supplied ${inputZip}. ` +
+            "The city and address clues match, so the original customer address will be used.",
+        },
+      };
+    }
+
     return {
       ok: false,
       code: "POSTAL_CODE_MISMATCH",
       message:
-        `Postal-code mismatch: Shopify has ${inputZip}, but the verified address has ${resultZip || "no postal code"}. ` +
-        "Please correct the address before booking.",
+        `The address matched, but the map provider could not confirm postal code ${inputZip}. ` +
+        "Please add a nearby landmark or locality clue.",
       detectedCity,
       suggestedAddress: formattedAddress,
     };

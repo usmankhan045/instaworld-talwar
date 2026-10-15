@@ -54,7 +54,7 @@ test("rejects a verified address that belongs to a different city", () => {
   if (!result.ok) assert.equal(result.code, "ADDRESS_CITY_MISMATCH");
 });
 
-test("rejects a postal-code mismatch", () => {
+test("keeps a city-matched address when the provider has a broader postal code", () => {
   const result = validateGeocodeCandidate(
     {
       ...lahoreCandidate,
@@ -63,8 +63,11 @@ test("rejects a postal-code mismatch", () => {
     address,
   );
 
-  assert.equal(result.ok, false);
-  if (!result.ok) assert.equal(result.code, "POSTAL_CODE_MISMATCH");
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.verifiedAddress.postalCode, "54660");
+    assert.match(result.verifiedAddress.warning || "", /postal code/);
+  }
 });
 
 test("rejects a city-only or incomplete geocoder result instead of guessing", () => {

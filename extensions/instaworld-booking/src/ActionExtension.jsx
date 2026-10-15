@@ -251,6 +251,9 @@ function Extension() {
                 Verified address ({verifiedAddress.source}): {verifiedAddress.formattedAddress}
               </s-text>
             )}
+            {verifiedAddress?.warning && (
+              <s-banner tone="warning">Address note: {verifiedAddress.warning}</s-banner>
+            )}
           </>
         )}
 
