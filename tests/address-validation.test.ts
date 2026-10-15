@@ -88,7 +88,7 @@ test("keeps a city-matched address when the provider has a broader postal code",
   }
 });
 
-test("rejects a city-only or incomplete geocoder result instead of guessing", () => {
+test("accepts a city-only geocoder result without guessing the street address", () => {
   const result = validateGeocodeCandidate(
     {
       display_name: "Lahore, Punjab, Pakistan",
@@ -97,8 +97,11 @@ test("rejects a city-only or incomplete geocoder result instead of guessing", ()
     address,
   );
 
-  assert.equal(result.ok, false);
-  if (!result.ok) assert.equal(result.code, "ADDRESS_AMBIGUOUS");
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.verifiedAddress.formattedAddress, "House 12, Main Boulevard Gulberg, Lahore, Punjab, 54660, Pakistan");
+    assert.match(result.verifiedAddress.warning || "", /original customer address/);
+  }
 });
 
 test("keeps a city-matched nearby result as a warning without replacing the address", () => {
@@ -166,7 +169,7 @@ test("accepts a rural landmark address without inventing a street address", () =
   }
 });
 
-test("does not accept a generic shop name without location clues", () => {
+test("accepts a city-matched landmark even when the map result is broad", () => {
   const result = validateGeocodeCandidate(
     {
       display_name: "Madina General Store, Islamabad, Pakistan",
@@ -185,8 +188,11 @@ test("does not accept a generic shop name without location clues", () => {
     },
   );
 
-  assert.equal(result.ok, false);
-  if (!result.ok) assert.equal(result.code, "ADDRESS_AMBIGUOUS");
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.verifiedAddress.city, "Islamabad");
+    assert.match(result.verifiedAddress.warning || "", /original customer address/);
+  }
 });
 
 test("accepts a repeated shop name when sector clues also match", () => {
@@ -203,6 +209,28 @@ test("accepts a repeated shop name when sector clues also match", () => {
     },
     {
       address1: "Near Madina General Store, Sector 3, G-11",
+      city: "Islamabad",
+      country: "Pakistan",
+      countryCode: "PK",
+    },
+  );
+
+  assert.equal(result.ok, true);
+});
+
+test("matches an Urdu provider city to the English Shopify city", () => {
+  const result = validateGeocodeCandidate(
+    {
+      display_name: "G-11, اسلام آباد, پاکستان",
+      address: {
+        suburb: "G-11",
+        city: "اسلام آباد",
+        country: "پاکستان",
+        country_code: "pk",
+      },
+    },
+    {
+      address1: "House 13, G-11 Sector 3",
       city: "Islamabad",
       country: "Pakistan",
       countryCode: "PK",

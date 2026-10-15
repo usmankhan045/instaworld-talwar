@@ -1,11 +1,10 @@
 /**
- * Strict delivery-address verification.
+ * Delivery-address verification with a soft geocoder.
  *
- * This module never invents or silently accepts an address. A booking is
- * allowed only when a geocoder returns a street-level result, the returned
- * city matches Shopify's city, and (when supplied) the postal code matches.
- * A provider outage or ambiguous result is a validation failure, not a
- * fail-open condition.
+ * The customer's address is the source of truth. Geocoding is used to catch
+ * a confident city contradiction, not to require a perfect map match for
+ * rural, landmark-based, or incomplete Pakistani addresses. All other
+ * provider disagreements become warnings and the original address is kept.
  */
 
 export type DeliveryAddressInput = {
@@ -53,17 +52,17 @@ type GeocodeCandidate = {
 
 /** City aliases used by InstaWorld/Shopify addresses in Pakistan. */
 const CITY_ALIASES: Record<string, string[]> = {
-  ISLAMABAD: ["islamabad", "isb"],
-  RAWALPINDI: ["rawalpindi", "rawalpinḍi", "pindi", "rwp"],
-  LAHORE: ["lahore", "lhr"],
-  KARACHI: ["karachi", "khi"],
-  PESHAWAR: ["peshawar", "peshāwar", "pew"],
-  FAISALABAD: ["faisalabad", "lyallpur", "fsd"],
-  MULTAN: ["multan"],
-  GUJRANWALA: ["gujranwala", "gujranwālā"],
-  QUETTA: ["quetta"],
-  HYDERABAD: ["hyderabad", "ḥaidarābād"],
-  SIALKOT: ["sialkot"],
+  ISLAMABAD: ["islamabad", "isb", "اسلام آباد", "اسلاماباد"],
+  RAWALPINDI: ["rawalpindi", "rawalpinḍi", "pindi", "rwp", "راولپنڈی"],
+  LAHORE: ["lahore", "lhr", "لاہور"],
+  KARACHI: ["karachi", "khi", "کراچی"],
+  PESHAWAR: ["peshawar", "peshāwar", "pew", "پشاور"],
+  FAISALABAD: ["faisalabad", "lyallpur", "fsd", "فیصل آباد"],
+  MULTAN: ["multan", "ملتان"],
+  GUJRANWALA: ["gujranwala", "gujranwālā", "گوجرانوالہ"],
+  QUETTA: ["quetta", "کوئٹہ"],
+  HYDERABAD: ["hyderabad", "ḥaidarābād", "حیدرآباد"],
+  SIALKOT: ["sialkot", "سیالکوٹ"],
   BAHAWALPUR: ["bahawalpur", "bwp"],
   SARGODHA: ["sargodha"],
   ABBOTTABAD: ["abbottabad"],
@@ -98,7 +97,7 @@ function normalize(value: string): string {
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim()
     .replace(/\s+/g, " ");
 }
@@ -274,7 +273,8 @@ function countryLooksPakistani(address: AddressComponents): boolean {
     (!countryCode && !country) ||
     countryCode === "pk" ||
     country === "pakistan" ||
-    country.includes("pakistan")
+    country.includes("pakistan") ||
+    country.includes("پاکستان")
   );
 }
 
@@ -291,7 +291,6 @@ function candidateResult(
   const formattedAddress = formatCandidate(candidate);
   const detectedCity = extractCity(resultAddress, String(input.city || ""));
   const cityMatchesRequested = candidateMatchesCity(resultAddress, String(input.city || ""));
-  const ruralAddress = isRuralAddress(input);
   const streetLevel = hasStreetLevelResult(resultAddress);
 
   if (!formattedAddress || !detectedCity) {
@@ -358,30 +357,19 @@ function candidateResult(
     };
   }
 
-  if (!streetLevel) {
-    if (!ruralAddress || !addressEvidence) {
-      return {
-        ok: false,
-        code: "ADDRESS_AMBIGUOUS",
-        message:
-          "The address is incomplete or ambiguous. A street-level address could not be verified; no address was guessed.",
-        detectedCity,
-        suggestedAddress: formattedAddress,
-      };
-    }
-
+  if (!streetLevel || !addressEvidence) {
     return {
       ok: true,
       verifiedAddress: {
-        // Preserve the merchant's complete rural address; never replace it
-        // with a broad village or road result from the map provider.
+        // Preserve the customer's address; never replace a rural or landmark
+        // address with a broad map result.
         formattedAddress: originalAddress(input),
         city: String(input.city).trim(),
         province: extractProvince(resultAddress) || input.province?.trim() || null,
         postalCode: inputZip || resultZip || null,
         source,
         confidence: "locality",
-        warning: warnings.length > 0 ? warnings.join(" ") : undefined,
+        warning: `${warnings.join(" ")} The city matches; the original customer address will be used.`.trim(),
       },
     };
   }
@@ -437,7 +425,7 @@ export function validateGeocodeCandidate(
   return candidateResult(candidate, source, input);
 }
 
-/** Verify and normalize a Shopify delivery address. This is fail-closed. */
+/** Verify and normalize a Shopify delivery address. City contradictions are hard failures; detail gaps are warnings. */
 export async function verifyDeliveryAddress(
   input: DeliveryAddressInput,
 ): Promise<AddressVerificationResult> {
@@ -493,9 +481,16 @@ export async function verifyDeliveryAddress(
 
   if (candidates.length === 0) {
     return {
-      ok: false,
-      code: "ADDRESS_NOT_FOUND",
-      message: "The address could not be verified using the available map data. It may be a valid rural or landmark address; add a recognizable landmark, village, road, or nearby shop name so it can be checked without guessing.",
+      ok: true,
+      verifiedAddress: {
+        formattedAddress: originalAddress(input),
+        city,
+        province: input.province?.trim() || null,
+        postalCode: input.zip?.trim() || null,
+        source: "nominatim",
+        confidence: "locality",
+        warning: "The city could not be independently checked from map data; the original customer address will be used.",
+      },
     };
   }
 
