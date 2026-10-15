@@ -301,15 +301,12 @@ function candidateResult(
     };
   }
 
-  if (!hasAddressEvidence(input, candidate)) {
-    return {
-      ok: false,
-      code: "ADDRESS_AMBIGUOUS",
-      message:
-        "The location could not be matched with enough independent clues. Add a sector, block, road, village, or nearby landmark; a generic shop name alone is not enough. No address was guessed.",
-      detectedCity,
-      suggestedAddress: formattedAddress,
-    };
+  const addressEvidence = hasAddressEvidence(input, candidate);
+  const warnings: string[] = [];
+  if (!addressEvidence) {
+    warnings.push(
+      "The map result is broader than the supplied address details; the original customer address will be used.",
+    );
   }
 
   if (!countryLooksPakistani(resultAddress)) {
@@ -325,35 +322,29 @@ function candidateResult(
   const resultZip = resultAddress.postcode?.trim();
   if (inputZip && ((streetLevel && !resultZip) || (resultZip && !postalMatches(inputZip, resultZip)))) {
     if (resultZip && !postalMatches(inputZip, resultZip)) {
-      return {
-        ok: true,
-        verifiedAddress: {
-          formattedAddress: originalAddress(input),
-          city: String(input.city).trim(),
-          province: extractProvince(resultAddress) || input.province?.trim() || null,
-          postalCode: inputZip,
-          source,
-          confidence: "locality",
-          warning:
-            `The map provider returned postal code ${resultZip}, while the customer supplied ${inputZip}. ` +
-            "The city and address clues match, so the original customer address will be used.",
-        },
-      };
+      warnings.push(
+        `The map provider returned postal code ${resultZip}, while the customer supplied ${inputZip}.`,
+      );
+    } else if (!resultZip && streetLevel) {
+      warnings.push(`The map provider could not confirm postal code ${inputZip}.`);
     }
 
     return {
-      ok: false,
-      code: "POSTAL_CODE_MISMATCH",
-      message:
-        `The address matched, but the map provider could not confirm postal code ${inputZip}. ` +
-        "Please add a nearby landmark or locality clue.",
-      detectedCity,
-      suggestedAddress: formattedAddress,
+      ok: true,
+      verifiedAddress: {
+        formattedAddress: originalAddress(input),
+        city: String(input.city).trim(),
+        province: extractProvince(resultAddress) || input.province?.trim() || null,
+        postalCode: inputZip,
+        source,
+        confidence: "locality",
+        warning: `${warnings.join(" ")} The city matches, so the original customer address will be used.`,
+      },
     };
   }
 
   if (!streetLevel) {
-    if (!ruralAddress) {
+    if (!ruralAddress || !addressEvidence) {
       return {
         ok: false,
         code: "ADDRESS_AMBIGUOUS",
@@ -375,6 +366,7 @@ function candidateResult(
         postalCode: inputZip || resultZip || null,
         source,
         confidence: "locality",
+        warning: warnings.length > 0 ? warnings.join(" ") : undefined,
       },
     };
   }
@@ -382,12 +374,13 @@ function candidateResult(
   return {
     ok: true,
     verifiedAddress: {
-      formattedAddress,
+      formattedAddress: addressEvidence ? formattedAddress : originalAddress(input),
       city: detectedCity,
       province: extractProvince(resultAddress),
       postalCode: resultZip || null,
       source,
-      confidence: "street",
+      confidence: addressEvidence ? "street" : "locality",
+      warning: warnings.length > 0 ? warnings.join(" ") : undefined,
     },
   };
 }

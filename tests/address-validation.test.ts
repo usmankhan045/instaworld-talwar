@@ -83,7 +83,7 @@ test("rejects a city-only or incomplete geocoder result instead of guessing", ()
   if (!result.ok) assert.equal(result.code, "ADDRESS_AMBIGUOUS");
 });
 
-test("rejects a nearby result that does not contain the supplied street or house evidence", () => {
+test("keeps a city-matched nearby result as a warning without replacing the address", () => {
   const result = validateGeocodeCandidate(
     {
       ...lahoreCandidate,
@@ -98,11 +98,14 @@ test("rejects a nearby result that does not contain the supplied street or house
     address,
   );
 
-  assert.equal(result.ok, false);
-  if (!result.ok) assert.equal(result.code, "ADDRESS_AMBIGUOUS");
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.match(result.verifiedAddress.warning || "", /broader/);
+    assert.match(result.verifiedAddress.formattedAddress, /House 12/);
+  }
 });
 
-test("rejects a result that cannot confirm the supplied postal code", () => {
+test("keeps a city-matched result when the provider has no postal code", () => {
   const result = validateGeocodeCandidate(
     {
       ...lahoreCandidate,
@@ -111,8 +114,8 @@ test("rejects a result that cannot confirm the supplied postal code", () => {
     address,
   );
 
-  assert.equal(result.ok, false);
-  if (!result.ok) assert.equal(result.code, "POSTAL_CODE_MISMATCH");
+  assert.equal(result.ok, true);
+  if (result.ok) assert.match(result.verifiedAddress.warning || "", /postal code/);
 });
 
 test("accepts a rural landmark address without inventing a street address", () => {
