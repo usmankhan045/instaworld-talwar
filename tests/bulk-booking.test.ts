@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {validateBulkCsv} from "../app/lib/bulk-booking.server.ts";
+import {formatBulkBookingError, validateBulkCsv} from "../app/lib/bulk-booking.server.ts";
 
 const header = "reference,first_name,last_name,phone,email,address,city,province,postal_code,country,amount,product_title,sku,color,quantity,payment_type";
 
@@ -36,4 +36,12 @@ test("allows a missing email without adding a placeholder", () => {
 
   assert.equal(result.errors.length, 0);
   assert.equal(result.groups[0].email, null);
+});
+
+test("formats every failed booking with a reference and human-readable message", () => {
+  assert.equal(
+    formatBulkBookingError("WA-9", "booking the shipment with InstaWorld", new Error("The destination city is not serviceable by InstaWorld.")),
+    "WA-9: This city is not serviceable by InstaWorld. Check the city name.",
+  );
+  assert.match(formatBulkBookingError("WA-10", "booking the shipment with InstaWorld", new Error("fetch failed")), /WA-10: Could not connect/);
 });

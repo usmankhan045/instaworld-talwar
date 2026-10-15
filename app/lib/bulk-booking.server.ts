@@ -72,7 +72,21 @@ export type BulkBookingResult = {
   status: "booked" | "skipped" | "failed";
   trackingNumber?: string;
   message?: string;
+  error?: string;
 };
+
+export function formatBulkBookingError(reference: string, stage: string, error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error || "Unknown error");
+  const message = raw.toLowerCase();
+  if (message.includes("not serviceable")) return `${reference}: This city is not serviceable by InstaWorld. Check the city name.`;
+  if (message.includes("invalid") && message.includes("phone")) return `${reference}: The phone number is invalid. Check the customer phone number.`;
+  if (message.includes("location") && message.includes("not_owned")) return `${reference}: The InstaWorld location is not configured for this account.`;
+  if (message.includes("api key") || message.includes("invalid_api_key")) return `${reference}: InstaWorld credentials are invalid or expired.`;
+  if (message.includes("rate limit") || message.includes("rate_limited")) return `${reference}: InstaWorld rate limit reached. Retry this order later.`;
+  if (message.includes("fetch failed") || message.includes("timeout") || message.includes("network")) return `${reference}: Could not connect to InstaWorld while ${stage.toLowerCase()}. Retry this order.`;
+  if (!raw || raw === "Unknown error") return `${reference}: Booking failed during ${stage.toLowerCase()}. Retry this order.`;
+  return `${reference}: ${raw}`;
+}
 
 function parseCsvLine(line: string): string[] {
   const values: string[] = [];
@@ -176,6 +190,7 @@ function requestFor(group: BulkBookingGroup, locationId: number): InstaWorldRequ
 }
 
 async function bookOneBulkGroup(shop: string, group: BulkBookingGroup, locationId: number): Promise<BulkBookingResult> {
+  let stage = "checking for an existing InstaWorld booking";
   try {
     // InstaWorld is the source of truth. A cancelled remote shipment may be
     // booked again; an active remote shipment is skipped as a duplicate.
@@ -185,11 +200,13 @@ async function bookOneBulkGroup(shop: string, group: BulkBookingGroup, locationI
     }
     const local = await prisma.shipment.findUnique({where: {shipment_shop_refNo_key: {shop, refNo: group.reference}}, select: {trackingNumber: true}});
     const bookingReference = local ? `${group.reference}-R${randomUUID().slice(0, 8)}`.slice(0, 100) : group.reference;
+    stage = "creating the shipment request";
     const requestPayload = requestFor({...group, reference: bookingReference}, locationId);
     const idempotencyKey = randomUUID();
     const shipment = await prisma.shipment.create({data: {shop, refNo: bookingReference, status: "submitting", declaredWeight: FIXED_SHIPMENT_WEIGHT_KG, paymentType: group.paymentType, amountDue: group.amount, currencyCode: "PKR"}});
     const attempt = await prisma.bookingAttempt.create({data: {shop, shipmentId: shipment.id, idempotencyKey, status: "submitting", requestFingerprint: JSON.stringify({source: "whatsapp-csv", reference: group.reference}), requestPayload: JSON.stringify(requestPayload)}});
     try {
+      stage = "booking the shipment with InstaWorld";
       const result = await createShipment(requestPayload, idempotencyKey, shop);
       await prisma.$transaction([
         prisma.shipment.update({where: {id: shipment.id}, data: {status: "booked", trackingNumber: result.trackingNumber, bookedAt: new Date()}}),
@@ -202,10 +219,10 @@ async function bookOneBulkGroup(shop: string, group: BulkBookingGroup, locationI
         prisma.shipment.update({where: {id: shipment.id}, data: {status: "failed"}}),
         prisma.bookingAttempt.update({where: {id: attempt.id}, data: {status: "definite_failure", completedAt: new Date(), lastErrorMessage: message}}),
       ]);
-      return {reference: group.reference, status: "failed", message};
+      return {reference: group.reference, status: "failed", error: formatBulkBookingError(group.reference, stage, message)};
     }
   } catch (error) {
-    return {reference: group.reference, status: "failed", message: error instanceof Error ? error.message : "Booking failed."};
+    return {reference: group.reference, status: "failed", error: formatBulkBookingError(group.reference, stage, error)};
   }
 }
 

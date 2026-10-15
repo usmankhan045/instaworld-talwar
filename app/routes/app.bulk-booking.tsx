@@ -87,7 +87,14 @@ export default function BulkBooking() {
       ) : null}
       {data?.results ? (
         <s-section heading="Booking results">
-          <s-table><s-table-header-row><s-table-header>Reference</s-table-header><s-table-header>Status</s-table-header><s-table-header>Tracking / message</s-table-header></s-table-header-row><s-table-body>{data.results.map((result) => <s-table-row key={result.reference}><s-table-cell>{result.reference}</s-table-cell><s-table-cell>{result.status}</s-table-cell><s-table-cell>{result.trackingNumber || result.message || ""}</s-table-cell></s-table-row>)}</s-table-body></s-table>
+          {data.results.some((result) => result.status === "failed") ? (
+            <s-banner heading="Some shipments failed" tone="critical">
+              <s-unordered-list>
+                {data.results.filter((result) => result.status === "failed").map((result) => <s-list-item key={result.reference}>{result.error || `${result.reference}: Booking failed. Retry this order.`}</s-list-item>)}
+              </s-unordered-list>
+            </s-banner>
+          ) : null}
+          <s-table><s-table-header-row><s-table-header>Reference</s-table-header><s-table-header>Status</s-table-header><s-table-header>Tracking / message</s-table-header></s-table-header-row><s-table-body>{data.results.map((result) => <s-table-row key={result.reference}><s-table-cell>{result.reference}</s-table-cell><s-table-cell>{result.status}</s-table-cell><s-table-cell>{result.status === "failed" ? result.error : result.trackingNumber || result.message || ""}</s-table-cell></s-table-row>)}</s-table-body></s-table>
         </s-section>
       ) : null}
       <s-section heading="CSV columns">
