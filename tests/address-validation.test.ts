@@ -141,3 +141,49 @@ test("accepts a rural landmark address without inventing a street address", () =
     assert.equal(result.verifiedAddress.postalCode, "24600");
   }
 });
+
+test("does not accept a generic shop name without location clues", () => {
+  const result = validateGeocodeCandidate(
+    {
+      display_name: "Madina General Store, Islamabad, Pakistan",
+      address: {
+        shop: "Madina General Store",
+        city: "Islamabad",
+        country: "Pakistan",
+        country_code: "pk",
+      },
+    },
+    {
+      address1: "Near Madina General Store",
+      city: "Islamabad",
+      country: "Pakistan",
+      countryCode: "PK",
+    },
+  );
+
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.code, "ADDRESS_AMBIGUOUS");
+});
+
+test("accepts a repeated shop name when sector clues also match", () => {
+  const result = validateGeocodeCandidate(
+    {
+      display_name: "Madina General Store, Sector 3, G-11, Islamabad, Pakistan",
+      address: {
+        shop: "Madina General Store",
+        suburb: "G-11",
+        city: "Islamabad",
+        country: "Pakistan",
+        country_code: "pk",
+      },
+    },
+    {
+      address1: "Near Madina General Store, Sector 3, G-11",
+      city: "Islamabad",
+      country: "Pakistan",
+      countryCode: "PK",
+    },
+  );
+
+  assert.equal(result.ok, true);
+});

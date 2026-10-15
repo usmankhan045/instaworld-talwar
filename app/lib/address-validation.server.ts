@@ -174,16 +174,17 @@ function hasAddressEvidence(
       .join(" "),
   );
   const genericTokens = new Set([
-    "house", "home", "street", "road", "block", "phase", "plot", "flat", "shop",
+    "house", "home", "street", "road", "main", "boulevard", "sector", "block", "phase", "plot", "flat", "shop",
     "village", "vill", "post", "office", "tehsil", "district", "near", "opposite",
-    "beside", "mohalla", "mauza", "po", "p", "o",
+    "beside", "mohalla", "mauza", "po", "p", "o", "general", "store", "madina",
   ]);
   const excludedTokens = new Set([
     ...normalize(String(input.city || "")).split(" "),
     ...normalize(String(input.province || "")).split(" "),
     String(input.zip || "").trim(),
   ]);
-  const addressTokens = normalize([input.address1, input.address2].filter(Boolean).join(" "))
+  const inputText = normalize([input.address1, input.address2].filter(Boolean).join(" "));
+  const addressTokens = inputText
     .split(" ")
     .filter(
       (token) =>
@@ -193,7 +194,22 @@ function hasAddressEvidence(
         (token.length >= 4 || /^\d+$/.test(token)),
     );
 
-  return addressTokens.length > 0 && addressTokens.some((token) => candidateText.includes(token));
+  const matchedTokens = addressTokens.filter((token) => candidateText.includes(token));
+  const locationClues = inputText.match(/\b(?:sector|block|phase|g)\s*[a-z0-9-]+\b/g) || [];
+  const matchedLocationClues = locationClues.filter((clue) => candidateText.includes(clue));
+  const postalMatchesCandidate = Boolean(
+    input.zip && candidate.address?.postcode && postalMatches(input.zip, candidate.address.postcode),
+  );
+
+  // One generic word such as “store” or “shop” is never enough. Accept two
+  // independent clues, two location markers, or one distinctive landmark /
+  // locality name (six or more characters) paired with the verified city.
+  return (
+    matchedTokens.length >= 2 ||
+    matchedLocationClues.length >= 2 ||
+    matchedTokens.some((token) => token.length >= 6) ||
+    (postalMatchesCandidate && matchedTokens.length >= 1)
+  );
 }
 
 function isRuralAddress(input: DeliveryAddressInput): boolean {
@@ -289,7 +305,7 @@ function candidateResult(
       ok: false,
       code: "ADDRESS_AMBIGUOUS",
       message:
-        "The geocoder found a nearby address, but it could not match the supplied street or house details. No address was guessed.",
+        "The location could not be matched with enough independent clues. Add a sector, block, road, village, or nearby landmark; a generic shop name alone is not enough. No address was guessed.",
       detectedCity,
       suggestedAddress: formattedAddress,
     };
