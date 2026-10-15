@@ -54,6 +54,24 @@ test("rejects a verified address that belongs to a different city", () => {
   if (!result.ok) assert.equal(result.code, "ADDRESS_CITY_MISMATCH");
 });
 
+test("does not let a matching district override a different explicit city", () => {
+  const result = validateGeocodeCandidate(
+    {
+      display_name: "Peshawar, Charsadda District, Pakistan",
+      address: {
+        city: "Peshawar",
+        county: "Charsadda District",
+        country: "Pakistan",
+        country_code: "pk",
+      },
+    },
+    {...address, city: "Charsadda"},
+  );
+
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.code, "ADDRESS_CITY_MISMATCH");
+});
+
 test("keeps a city-matched address when the provider has a broader postal code", () => {
   const result = validateGeocodeCandidate(
     {

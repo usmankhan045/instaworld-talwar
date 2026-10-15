@@ -103,35 +103,41 @@ function normalize(value: string): string {
     .replace(/\s+/g, " ");
 }
 
-function cityMatches(geocodedCity: string, selectedCity: string): boolean {
-  const rawGeocoded = geocodedCity.trim().toLocaleLowerCase();
-  const rawSelected = selectedCity.trim().toLocaleLowerCase();
-  if (rawGeocoded === rawSelected || rawGeocoded.includes(rawSelected)) return true;
-  const geocoded = normalize(geocodedCity);
-  const selected = normalize(selectedCity);
-  const aliases = CITY_ALIASES[selectedCity.trim().toUpperCase()] ?? [];
-  if (geocoded && selected && (geocoded === selected || geocoded.includes(selected))) return true;
-  return aliases.some((alias) => {
-    const rawAlias = alias.trim().toLocaleLowerCase();
-    if (rawGeocoded === rawAlias || rawGeocoded.includes(rawAlias)) return true;
-    const normalizedAlias = normalize(alias);
-    return Boolean(normalizedAlias) && (geocoded === normalizedAlias || geocoded.includes(normalizedAlias));
-  });
+function stripCityQualifier(value: string): string {
+  return value
+    .trim()
+    .toLocaleLowerCase()
+    .replace(/^(district|city|tehsil|gpo|division|ضلع|تحصیل)\s+/i, "")
+    .replace(/\s+(district|city|tehsil|gpo|division)$/i, "")
+    .trim();
 }
 
-function locationNames(address: AddressComponents): string[] {
-  return [
-    address.city,
-    address.town,
-    address.municipality,
-    address.county,
-    address.state_district,
-    address.village,
-  ].filter((value): value is string => Boolean(value?.trim())).map((value) => value.trim());
+function canonicalCity(value: string): string {
+  const raw = stripCityQualifier(value);
+  const normalized = normalize(raw);
+  for (const [canonical, aliases] of Object.entries(CITY_ALIASES)) {
+    const candidates = [canonical.replace(/_/g, " "), ...aliases];
+    if (candidates.some((candidate) => {
+      const candidateRaw = stripCityQualifier(candidate);
+      const candidateNormalized = normalize(candidateRaw);
+      return raw === candidateRaw || (Boolean(normalized) && normalized === candidateNormalized);
+    })) {
+      return canonical;
+    }
+  }
+  return normalized || raw;
+}
+
+function cityMatches(geocodedCity: string, selectedCity: string): boolean {
+  return Boolean(geocodedCity && selectedCity) && canonicalCity(geocodedCity) === canonicalCity(selectedCity);
 }
 
 function extractCity(address: AddressComponents, requestedCity?: string): string {
-  const names = locationNames(address);
+  const primaryNames = [address.city, address.town, address.municipality]
+    .filter((value): value is string => Boolean(value?.trim())).map((value) => value.trim());
+  const secondaryNames = [address.county, address.state_district, address.village]
+    .filter((value): value is string => Boolean(value?.trim())).map((value) => value.trim());
+  const names = [...primaryNames, ...secondaryNames];
   return (
     names.find((name) => requestedCity && cityMatches(name, requestedCity)) ||
     names[0] ||
@@ -140,7 +146,17 @@ function extractCity(address: AddressComponents, requestedCity?: string): string
 }
 
 function candidateMatchesCity(address: AddressComponents, selectedCity: string): boolean {
-  return locationNames(address).some((name) => cityMatches(name, selectedCity));
+  const primaryNames = [address.city, address.town, address.municipality]
+    .filter((value): value is string => Boolean(value?.trim()));
+  const secondaryNames = [address.county, address.state_district, address.village]
+    .filter((value): value is string => Boolean(value?.trim()));
+
+  // An explicit city/town takes precedence. A district match must not rescue
+  // a result whose actual city is different.
+  if (primaryNames.length > 0) {
+    return primaryNames.some((name) => cityMatches(name, selectedCity));
+  }
+  return secondaryNames.some((name) => cityMatches(name, selectedCity));
 }
 
 function extractProvince(address: AddressComponents): string | null {
