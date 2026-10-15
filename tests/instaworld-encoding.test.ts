@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { stringifyForInstaWorld } from "../app/lib/instaworld.server.ts";
+import {
+  allocateShipmentWeight,
+  FIXED_SHIPMENT_WEIGHT_KG,
+  stringifyForInstaWorld,
+} from "../app/lib/instaworld.server.ts";
 
 test("escapes Urdu as ASCII JSON while preserving the original value", () => {
   const original = { consignee: { address: "وفاقی دارالحکومت اسلام آباد" } };
@@ -14,4 +18,10 @@ test("escapes Urdu as ASCII JSON while preserving the original value", () => {
 test("leaves ordinary InstaWorld JSON unchanged", () => {
   const payload = { city: "ISLAMABAD", remarks: "allow to open", amount: 7200 };
   assert.equal(stringifyForInstaWorld(payload), JSON.stringify(payload));
+});
+
+test("allocates one fixed weight across the complete shipment", () => {
+  const weights = allocateShipmentWeight(10);
+  assert.deepEqual(weights, [FIXED_SHIPMENT_WEIGHT_KG, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  assert.equal(weights.reduce((total, weight) => total + weight, 0), FIXED_SHIPMENT_WEIGHT_KG);
 });

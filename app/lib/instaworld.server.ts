@@ -13,6 +13,8 @@ export type InstaWorldConfig = {
   refPrefix: string;
 };
 
+export const FIXED_SHIPMENT_WEIGHT_KG = 0.8;
+
 /**
  * Matches InstaWorld v2 CreateShipmentRequest schema exactly.
  * payment.type: "cod" | "paid"
@@ -172,6 +174,12 @@ export function normaliseCity(raw: string | null | undefined): string {
 export function truncate(value: string, max: number): string {
   if (value.length <= max) return value;
   return value.slice(0, max).replace(/\s+\S*$/, "").trim() || value.slice(0, max).trim();
+}
+
+/** Keep product lines visible while declaring one fixed weight for the parcel. */
+export function allocateShipmentWeight(itemCount: number): number[] {
+  if (itemCount <= 0) return [];
+  return [FIXED_SHIPMENT_WEIGHT_KG, ...Array.from({length: itemCount - 1}, () => 0)];
 }
 
 // ---------------------------------------------------------------------------

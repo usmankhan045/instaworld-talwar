@@ -3,7 +3,9 @@ import {randomUUID} from "node:crypto";
 import prisma from "../db.server";
 import {combineOrders} from "./order-combination.server";
 import {
+  allocateShipmentWeight,
   createShipment,
+  FIXED_SHIPMENT_WEIGHT_KG,
   findShipmentByReference,
   getPaymentType,
   normalisePhone,
@@ -62,6 +64,7 @@ function buildRequest(
 
   // Email: use the primary order's email, or "nil" if not provided
   const email = orders[0]?.email || "nil";
+  const shipmentWeights = allocateShipmentWeight(combined.items.length);
 
   return {
     refNo,
@@ -91,14 +94,14 @@ function buildRequest(
       ),
       email,
     },
-    items: combined.items.map((item) => ({
+    items: combined.items.map((item, index) => ({
       title: item.title ? truncate(item.title, 100) : undefined,
       sku: item.sku ?? undefined,
       // Color from the product's custom.color metafield (set in Shopify admin)
       product_detail: item.color ?? undefined,
       quantity: item.quantity,
-      // Fixed 0.8 kg per line item regardless of quantity
-      kg: 0.8,
+      // Declare 0.8 kg once for the complete parcel, not once per line.
+      kg: shipmentWeights[index],
     })),
   };
 }
@@ -106,10 +109,13 @@ function buildRequest(
 export async function bookCombinedOrders(
   shop: string,
   orders: ShopifyOrder[],
-  declaredWeight: number,
+  _declaredWeight: number,
   admin?: unknown,
 ) {
   const config = requireInstaWorldConfig(shop);
+  // The courier weighs the parcel at the office. Always book one fixed
+  // shipment weight regardless of line count or product quantity.
+  const declaredWeight = FIXED_SHIPMENT_WEIGHT_KG;
   const combined = combineOrders(orders, declaredWeight);
   const addressVerification = await verifyDeliveryAddress(combined.consignee);
   if (!addressVerification.ok) {
