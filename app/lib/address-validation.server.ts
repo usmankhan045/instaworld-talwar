@@ -310,8 +310,7 @@ function candidateResult(
       ok: false,
       code: "ADDRESS_CITY_MISMATCH",
       message:
-        `Address mismatch: the verified result belongs to ${detectedCity}, not ${input.city}. ` +
-        "No shipment was created.",
+        "City mismatch: the order city and the verified address city do not match. Please check the city and address.",
       detectedCity,
       suggestedAddress: formattedAddress,
     };

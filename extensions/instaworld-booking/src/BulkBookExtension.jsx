@@ -20,12 +20,17 @@ async function readApiResponse(response, fallbackMessage, allowedErrorStatuses =
   }
 
   if (!response.ok && !allowedErrorStatuses.includes(response.status)) {
-    const stage = payload.stage ? `${payload.stage}: ` : "";
-    const code = payload.code ? ` [${payload.code}]` : "";
-    const suggestion = payload.suggestedAddress
-      ? ` Suggested provider result: ${payload.suggestedAddress}`
-      : "";
-    const error = new Error(`${stage}${payload.message || fallbackMessage}${suggestion}${code} (HTTP ${response.status})`);
+    const messages = {
+      ADDRESS_CITY_MISMATCH: "City mismatch: the order city and address city do not match. Check the city and address.",
+      ADDRESS_NOT_FOUND: "Address not found. Add a road, village, sector, or nearby landmark.",
+      ADDRESS_AMBIGUOUS: "Address needs more detail. Add a road, sector, village, or nearby landmark.",
+      ADDRESS_VERIFICATION_UNAVAILABLE: "Address verification is temporarily unavailable. Try again shortly.",
+      POSTAL_CODE_MISMATCH: "The city matches, but the postal code needs checking.",
+    };
+    const rawMessage = String(payload.message || fallbackMessage)
+      .replace(/^[^:]{2,80} failed:\s*/i, "")
+      .replace(/\s*\[[A-Z_]+\]\s*\(HTTP \d+\)$/i, "");
+    const error = new Error(messages[payload.code] || rawMessage);
     error.orderNumber = payload.orderNumber || Object.values(payload.orderNumbers || {})[0] || "";
     throw error;
   }
