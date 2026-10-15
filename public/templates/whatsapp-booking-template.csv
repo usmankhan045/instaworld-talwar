@@ -1,2 +1,6 @@
 reference,first_name,last_name,phone,email,address,city,province,postal_code,country,amount,product_title,sku,color,quantity,payment_type
-WA-1001,Ali,Khan,03001234567,customer@example.com,"House 12, Main Road",Lahore,Punjab,54000,Pakistan,3600,Dastoor Handmade Winter Wool,SKU-001,Black and Ivory Check,1,cod
+WA-TEST-1001,Ali,Test,03000000001,ali.test@example.com,"House 12, Main Road",Lahore,Punjab,54000,Pakistan,3600,Dastoor Handmade Winter Wool,SKU-TEST-001,Black and Ivory Check,1,cod
+WA-TEST-1002,Ahmed,Demo,03000000002,ahmed.demo@example.com,"Flat 4, Street 8",Islamabad,Islamabad,44000,Pakistan,7200,Dastoor Handmade Winter Wool,SKU-TEST-002,Blue Grey Check,1,cod
+WA-TEST-1003,Sara,Sample,03000000003,sara.sample@example.com,"House 22, University Road",Peshawar,Khyber Pakhtunkhwa,25000,Pakistan,10800,Dastoor Handmade Winter Wool,SKU-TEST-003,Charcoal Grey Stripe,1,cod
+WA-TEST-1003,Sara,Sample,03000000003,sara.sample@example.com,"House 22, University Road",Peshawar,Khyber Pakhtunkhwa,25000,Pakistan,10800,Dastoor Handmade Winter Wool,SKU-TEST-004,Brown and Beige Check,1,cod
+WA-TEST-1004,Hassan,Example,03000000004,hassan.example@example.com,"Shop 7, Main Bazaar",Charsadda,Khyber Pakhtunkhwa,24420,Pakistan,3600,Dastoor Handmade Winter Wool,SKU-TEST-005,Olive Green,2,cod
