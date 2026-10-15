@@ -1,0 +1,2 @@
+reference,first_name,last_name,phone,email,address,city,province,postal_code,country,amount,product_title,sku,color,quantity,payment_type
+WA-1001,Ali,Khan,03001234567,customer@example.com,"House 12, Main Road",Lahore,Punjab,54000,Pakistan,3600,Dastoor Handmade Winter Wool,SKU-001,Black and Ivory Check,1,cod
