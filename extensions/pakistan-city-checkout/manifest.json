@@ -1,3 +1,4 @@
 {
-  "purchase.checkout.delivery-address.render-after": {}
+  "purchase.checkout.delivery-address.render-after": {},
+  "purchase.checkout.block.render": {}
 }
