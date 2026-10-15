@@ -8,10 +8,10 @@ import {
   createShipment,
   FIXED_SHIPMENT_WEIGHT_KG,
   findShipmentByReference,
+  isCancelledShipment,
   getPaymentType,
   normalisePhone,
   normaliseCity,
-  toInstaWorldPdfSafeText,
   truncate,
   requireInstaWorldConfig,
   type InstaWorldRequest,
@@ -129,6 +129,16 @@ export async function bookCombinedOrders(
       zip: addressVerification.verifiedAddress.postalCode || combined.consignee.zip,
     },
   };
+  const existingLinks = await prisma.shipmentOrder.findMany({
+    where: {shop, shopifyOrderId: {in: combined.orderIds}},
+    select: {shopifyOrderNumber: true, shipment: {select: {refNo: true}}},
+  });
+  for (const link of existingLinks) {
+    const remote = await findShipmentByReference(link.shipment.refNo, shop);
+    if (remote && !isCancelledShipment(remote)) {
+      throw new Error(`Order #${link.shopifyOrderNumber} is already booked in InstaWorld.`);
+    }
+  }
   const attemptId = randomUUID();
   const idempotencyKey = randomUUID();
   // Use Shopify order number(s) as the human-readable refNo (e.g. "1006" or "1006+1007")
@@ -138,14 +148,6 @@ export async function bookCombinedOrders(
   const leaseExpiresAt = new Date(Date.now() + RESERVATION_LEASE_MS);
 
   const {attempt, refNo, requestPayload} = await prisma.$transaction(async (tx) => {
-    const existing = await tx.shipmentOrder.findFirst({
-      where: {shop, shopifyOrderId: {in: combined.orderIds}},
-      select: {shopifyOrderNumber: true},
-    });
-    if (existing) {
-      throw new Error(`Order #${existing.shopifyOrderNumber} is already booked.`);
-    }
-
     const now = new Date();
     await tx.orderReservation.updateMany({
       where: {
@@ -346,16 +348,16 @@ async function finalizeSuccessfulBooking(
       where: {id: attemptId},
       data: {status: "succeeded", completedAt: new Date()},
     });
-    await tx.shipmentOrder.createMany({
-      data: reservations.map((reservation) => ({
-        shop,
-        shipmentId: shipment.id,
-        shopifyOrderId: reservation.shopifyOrderId,
-        shopifyOrderNumber:
-          sourceOrders.find((order) => order.id === reservation.shopifyOrderId)?.orderNumber ||
-          reservation.shopifyOrderId,
-      })),
-    });
+    for (const reservation of reservations) {
+      const shopifyOrderNumber =
+        sourceOrders.find((order) => order.id === reservation.shopifyOrderId)?.orderNumber ||
+        reservation.shopifyOrderId;
+      await tx.shipmentOrder.upsert({
+        where: {shipmentOrder_shop_shopifyOrderId_key: {shop, shopifyOrderId: reservation.shopifyOrderId}},
+        update: {shipmentId: shipment.id, shopifyOrderNumber},
+        create: {shop, shipmentId: shipment.id, shopifyOrderId: reservation.shopifyOrderId, shopifyOrderNumber},
+      });
+    }
     await tx.orderReservation.updateMany({
       where: {attemptId, state: "active"},
       data: {state: "consumed"},

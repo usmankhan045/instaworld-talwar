@@ -1,7 +1,6 @@
 
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 
-import prisma from "../db.server";
 import { combineOrders } from "../lib/order-combination.server";
 import {
   getShopifyOrders,
@@ -127,34 +126,6 @@ export async function action({ request }: ActionFunctionArgs) {
 
     stage = "Shopify order retrieval";
     const orders = await getShopifyOrders(admin, orderIds);
-
-    stage = "Prisma shipment lookup";
-    const existing = await prisma.shipmentOrder.findMany({
-      where: {
-        shop: session.shop,
-        shopifyOrderId: { in: orderIds },
-      },
-      select: {
-        shopifyOrderId: true,
-        shopifyOrderNumber: true,
-        shipment: {
-          select: {
-            trackingNumber: true,
-            status: true,
-          },
-        },
-      },
-    });
-
-    if (existing.length > 0) {
-      return json(
-        {
-          message: `Order #${existing[0].shopifyOrderNumber} is already associated with a shipment.`,
-          existing,
-        },
-        { status: 409 },
-      );
-    }
 
     stage = "order combination";
     const combined = combineOrders(orders);

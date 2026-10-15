@@ -165,7 +165,40 @@ export function normaliseCity(raw: string | null | undefined): string {
     "KOTLI": "KOTLI",
   };
 
-  return aliases[city] ?? city;
+  const aliased = aliases[city];
+  if (aliased) return aliased;
+
+  const candidates = new Set([
+    ...Object.values(aliases),
+    "ISLAMABAD", "LAHORE", "KARACHI", "RAWALPINDI", "PESHAWAR", "GUJRANWALA", "SIALKOT",
+    "DASKA", "WAZIRABAD", "JHELUM", "MURREE", "TAXILA", "ATTOCK", "CHAKWAL", "KAMOKE",
+    "MINGORA", "KABAL", "DIR", "CHITRAL", "KHYBER", "PARACHINAR", "MIRANSHAH", "KALAT",
+    "SIBI", "ZHOB", "CHAMAN", "DERA ALLAH YAR", "UMERKOT", "THARPARKAR", "BADIN", "THATTA",
+    "MITHI", "KANDHKOT", "GHOTKI", "KAMBER", "BHAKKAR", "MIANWALI", "KHUSHAB", "PAKPATTAN",
+    "HARIPUR", "KARAK", "LAKKI MARWAT", "KOHAT", "NOWSHERA", "HANGU", "BATTAGRAM", "BUNER",
+    "AZAD KASHMIR", "GILGIT", "SKARDU", "HUNZA",
+  ]);
+  const distance = (left: string, right: string) => {
+    const row = Array.from({length: right.length + 1}, (_, index) => index);
+    for (let i = 1; i <= left.length; i += 1) {
+      let diagonal = row[0];
+      row[0] = i;
+      for (let j = 1; j <= right.length; j += 1) {
+        const above = row[j];
+        row[j] = left[i - 1] === right[j - 1]
+          ? diagonal
+          : Math.min(diagonal + 1, row[j] + 1, row[j - 1] + 1);
+        diagonal = above;
+      }
+    }
+    return row[right.length];
+  };
+  const normalised = city.replace(/[^A-Z0-9 ]/g, "").replace(/\s+/g, " ").trim();
+  const matches = [...candidates]
+    .map((candidate) => ({candidate, distance: distance(normalised, candidate)}))
+    .sort((a, b) => a.distance - b.distance);
+  const threshold = normalised.length <= 6 ? 1 : 2;
+  return matches[0] && matches[0].distance <= threshold ? matches[0].candidate : city;
 }
 
 /**
@@ -204,6 +237,16 @@ export function buildInstaWorldAddress(parts: Array<string | null | undefined>):
       return true;
     })
     .join(", ");
+}
+
+export function isCancelledShipment(shipment: InstaWorldShipment | null): boolean {
+  if (!shipment || typeof shipment.raw !== "object" || !shipment.raw) return false;
+  const raw = shipment.raw as Record<string, unknown>;
+  const status = [raw.status, raw.public_status, raw.publicStatus, raw.shipment_status]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ")
+    .toUpperCase();
+  return status.includes("CANCEL");
 }
 
 /** Keep product lines visible while declaring one fixed weight for the parcel. */

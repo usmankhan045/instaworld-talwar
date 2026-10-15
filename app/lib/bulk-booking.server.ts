@@ -7,6 +7,8 @@ import {
   createShipment,
   FIXED_SHIPMENT_WEIGHT_KG,
   getPaymentType,
+  isCancelledShipment,
+  findShipmentByReference,
   normaliseCity,
   normalisePhone,
   truncate,
@@ -48,7 +50,7 @@ export type BulkBookingGroup = {
   firstName: string;
   lastName: string;
   phone: string;
-  email: string;
+  email: string | null;
   address: string;
   city: string;
   province: string;
@@ -141,7 +143,7 @@ export function validateBulkCsv(text: string): BulkValidation {
     const rowData = {
       reference,
       firstName: value(row, "first_name"), lastName: value(row, "last_name"), phone: normalisePhone(value(row, "phone")),
-      email: value(row, "email") || "nil", address: value(row, "address"), city: normaliseCity(value(row, "city")),
+      email: value(row, "email") || null, address: value(row, "address"), city: normaliseCity(value(row, "city")),
       province: value(row, "province"), postalCode: value(row, "postal_code"), country: value(row, "country") || "Pakistan",
       amount, paymentType: paymentType as "cod" | "paid",
     };
@@ -166,24 +168,26 @@ function requestFor(group: BulkBookingGroup, locationId: number): InstaWorldRequ
     payment: {type: getPaymentType(group.paymentType === "cod" ? "cod" : "prepaid"), amount: group.amount},
     consignee: {
       first_name: truncate(group.firstName, 80), last_name: truncate(group.lastName, 80), phone: group.phone,
-      email: truncate(group.email, 150), city: group.city,
+      ...(group.email ? {email: truncate(group.email, 150)} : {}), city: group.city,
       address: truncate(buildInstaWorldAddress([group.address, group.city, group.province, group.postalCode, group.country]), 200),
     },
     items: group.items.map((item, index) => ({title: truncate(item.title, 100), sku: item.sku, product_detail: item.color || undefined, quantity: item.quantity, kg: weights[index]})),
   };
 }
 
-export async function bookBulkGroups(shop: string, groups: BulkBookingGroup[], locationId: number): Promise<BulkBookingResult[]> {
-  const results: BulkBookingResult[] = [];
-  for (const group of groups) {
-    const existing = await prisma.shipment.findUnique({where: {shipment_shop_refNo_key: {shop, refNo: group.reference}}, select: {trackingNumber: true}});
-    if (existing) {
-      results.push({reference: group.reference, status: "skipped", trackingNumber: existing.trackingNumber || undefined, message: "Already booked."});
-      continue;
+async function bookOneBulkGroup(shop: string, group: BulkBookingGroup, locationId: number): Promise<BulkBookingResult> {
+  try {
+    // InstaWorld is the source of truth. A cancelled remote shipment may be
+    // booked again; an active remote shipment is skipped as a duplicate.
+    const remote = await findShipmentByReference(group.reference, shop);
+    if (remote && !isCancelledShipment(remote)) {
+      return {reference: group.reference, status: "skipped", trackingNumber: remote.trackingNumber, message: "Already booked in InstaWorld."};
     }
-    const requestPayload = requestFor(group, locationId);
+    const local = await prisma.shipment.findUnique({where: {shipment_shop_refNo_key: {shop, refNo: group.reference}}, select: {trackingNumber: true}});
+    const bookingReference = local ? `${group.reference}-R${randomUUID().slice(0, 8)}`.slice(0, 100) : group.reference;
+    const requestPayload = requestFor({...group, reference: bookingReference}, locationId);
     const idempotencyKey = randomUUID();
-    const shipment = await prisma.shipment.create({data: {shop, refNo: group.reference, status: "submitting", declaredWeight: FIXED_SHIPMENT_WEIGHT_KG, paymentType: group.paymentType, amountDue: group.amount, currencyCode: "PKR"}});
+    const shipment = await prisma.shipment.create({data: {shop, refNo: bookingReference, status: "submitting", declaredWeight: FIXED_SHIPMENT_WEIGHT_KG, paymentType: group.paymentType, amountDue: group.amount, currencyCode: "PKR"}});
     const attempt = await prisma.bookingAttempt.create({data: {shop, shipmentId: shipment.id, idempotencyKey, status: "submitting", requestFingerprint: JSON.stringify({source: "whatsapp-csv", reference: group.reference}), requestPayload: JSON.stringify(requestPayload)}});
     try {
       const result = await createShipment(requestPayload, idempotencyKey, shop);
@@ -191,15 +195,26 @@ export async function bookBulkGroups(shop: string, groups: BulkBookingGroup[], l
         prisma.shipment.update({where: {id: shipment.id}, data: {status: "booked", trackingNumber: result.trackingNumber, bookedAt: new Date()}}),
         prisma.bookingAttempt.update({where: {id: attempt.id}, data: {status: "succeeded", completedAt: new Date()}}),
       ]);
-      results.push({reference: group.reference, status: "booked", trackingNumber: result.trackingNumber});
+      return {reference: group.reference, status: "booked", trackingNumber: result.trackingNumber};
     } catch (error) {
       const message = error instanceof Error ? error.message : "Booking failed.";
       await prisma.$transaction([
         prisma.shipment.update({where: {id: shipment.id}, data: {status: "failed"}}),
         prisma.bookingAttempt.update({where: {id: attempt.id}, data: {status: "definite_failure", completedAt: new Date(), lastErrorMessage: message}}),
       ]);
-      results.push({reference: group.reference, status: "failed", message});
+      return {reference: group.reference, status: "failed", message};
     }
+  } catch (error) {
+    return {reference: group.reference, status: "failed", message: error instanceof Error ? error.message : "Booking failed."};
+  }
+}
+
+export async function bookBulkGroups(shop: string, groups: BulkBookingGroup[], locationId: number): Promise<BulkBookingResult[]> {
+  const results: BulkBookingResult[] = [];
+  const batchSize = 5;
+  for (let index = 0; index < groups.length; index += batchSize) {
+    const batch = groups.slice(index, index + batchSize);
+    results.push(...await Promise.all(batch.map((group) => bookOneBulkGroup(shop, group, locationId))));
   }
   return results;
 }

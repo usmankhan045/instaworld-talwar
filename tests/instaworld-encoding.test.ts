@@ -4,6 +4,7 @@ import {
   allocateShipmentWeight,
   buildInstaWorldAddress,
   FIXED_SHIPMENT_WEIGHT_KG,
+  normaliseCity,
   stringifyForInstaWorld,
   toInstaWorldPdfSafeText,
 } from "../app/lib/instaworld.server.ts";
@@ -39,4 +40,9 @@ test("books one clean English address without duplicate components", () => {
     buildInstaWorldAddress(["House 13, Peshawar", "Peshawar", "خیبر پختونخوا", "25000", "Pakistan"]),
     "House 13, Peshawar, 25000, Pakistan",
   );
+});
+
+test("corrects small Pakistani city spelling mistakes", () => {
+  assert.equal(normaliseCity("salkot"), "SIALKOT");
+  assert.equal(normaliseCity("Islamabd"), "ISLAMABAD");
 });

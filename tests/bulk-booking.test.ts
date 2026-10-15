@@ -15,6 +15,7 @@ test("groups repeated CSV rows into one shipment and preserves product colors", 
   assert.equal(result.errors.length, 0);
   assert.equal(result.groups.length, 1);
   assert.deepEqual(result.groups[0].items.map((item) => item.color), ["Black", "Blue"]);
+  assert.equal(result.groups[0].email, "ali@example.com");
 });
 
 test("rejects conflicting customer details under one shipment reference", () => {
@@ -25,4 +26,14 @@ test("rejects conflicting customer details under one shipment reference", () => 
   ].join("\n"));
 
   assert.match(result.errors.join(" "), /does not match/);
+});
+
+test("allows a missing email without adding a placeholder", () => {
+  const result = validateBulkCsv([
+    header,
+    'WA-2,Ali,Khan,03001234567,,House 1,Lahore,Punjab,54000,Pakistan,3600,Shawl,,Black,1,cod',
+  ].join("\n"));
+
+  assert.equal(result.errors.length, 0);
+  assert.equal(result.groups[0].email, null);
 });
