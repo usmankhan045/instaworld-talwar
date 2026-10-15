@@ -16,6 +16,13 @@ database.sqlite
 .env
 .env.*
 
+# Never commit local exports, backups, or generated diagnostics
+*.backup
+*.bak
+*.csv
+*.pdf
+*.log
+
 
 
 
