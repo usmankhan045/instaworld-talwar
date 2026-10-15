@@ -54,6 +54,32 @@ test("rejects a verified address that belongs to a different city", () => {
   if (!result.ok) assert.equal(result.code, "ADDRESS_CITY_MISMATCH");
 });
 
+test("keeps a city explicitly named in the customer address when the provider chooses a nearby area", () => {
+  const result = validateGeocodeCandidate(
+    {
+      display_name: "University Road, Mardan, Pakistan",
+      address: {
+        road: "University Road",
+        city: "Mardan",
+        country: "Pakistan",
+        country_code: "pk",
+      },
+    },
+    {
+      address1: "Near Peshawar University GT Road Peshawar",
+      city: "Peshawar",
+      country: "Pakistan",
+      countryCode: "PK",
+    },
+  );
+
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.verifiedAddress.city, "Peshawar");
+    assert.match(result.verifiedAddress.warning || "", /original customer address/);
+  }
+});
+
 test("does not let a matching district override a different explicit city", () => {
   const result = validateGeocodeCandidate(
     {

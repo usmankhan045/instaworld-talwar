@@ -127,6 +127,17 @@ function canonicalCity(value: string): string {
   return normalized || raw;
 }
 
+function cityTerms(value: string): string[] {
+  const canonical = canonicalCity(value);
+  const aliases = Object.entries(CITY_ALIASES).find(([name]) => name === canonical)?.[1] || [];
+  return [...new Set([canonical.replace(/_/g, " "), value, ...aliases].map(normalize).filter((term) => term.length >= 3))];
+}
+
+function textMentionsCity(text: string, city: string): boolean {
+  const normalizedText = normalize(text);
+  return cityTerms(city).some((term) => normalizedText.includes(term));
+}
+
 function cityMatches(geocodedCity: string, selectedCity: string): boolean {
   return Boolean(geocodedCity && selectedCity) && canonicalCity(geocodedCity) === canonicalCity(selectedCity);
 }
@@ -284,7 +295,15 @@ function candidateResult(
   const resultAddress = candidate.address ?? {};
   const formattedAddress = formatCandidate(candidate);
   const detectedCity = extractCity(resultAddress, String(input.city || ""));
-  const cityMatchesRequested = candidateMatchesCity(resultAddress, String(input.city || ""));
+  const hasExplicitCandidateCity = [resultAddress.city, resultAddress.town, resultAddress.municipality]
+    .some((value) => Boolean(value?.trim()));
+  const cityMatchesRequested =
+    candidateMatchesCity(resultAddress, String(input.city || "")) ||
+    (!hasExplicitCandidateCity && textMentionsCity(formattedAddress, String(input.city || "")));
+  const inputMentionsRequestedCity = textMentionsCity(
+    [input.address1, input.address2].filter(Boolean).join(" "),
+    String(input.city || ""),
+  );
   const streetLevel = hasStreetLevelResult(resultAddress);
 
   if (!formattedAddress || !detectedCity) {
@@ -299,6 +318,24 @@ function candidateResult(
   }
 
   if (!cityMatchesRequested) {
+    // A map provider can return a nearby administrative area even when the
+    // customer's free-text address explicitly names the requested city. In
+    // that case preserve the customer address and warn; do not reject a real
+    // delivery because one provider chose the wrong hierarchy field.
+    if (inputMentionsRequestedCity) {
+      return {
+        ok: true,
+        verifiedAddress: {
+          formattedAddress: originalAddress(input),
+          city: String(input.city).trim(),
+          province: input.province?.trim() || extractProvince(resultAddress),
+          postalCode: input.zip?.trim() || resultAddress.postcode?.trim() || null,
+          source,
+          confidence: "locality",
+          warning: "The address names the requested city, but the map provider returned a different nearby area. The original customer address will be used.",
+        },
+      };
+    }
     return {
       ok: false,
       code: "ADDRESS_CITY_MISMATCH",
