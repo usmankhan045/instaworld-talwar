@@ -4,6 +4,7 @@ import {
   allocateShipmentWeight,
   FIXED_SHIPMENT_WEIGHT_KG,
   stringifyForInstaWorld,
+  toInstaWorldPdfSafeText,
 } from "../app/lib/instaworld.server.ts";
 
 test("escapes Urdu as ASCII JSON while preserving the original value", () => {
@@ -24,4 +25,10 @@ test("allocates one fixed weight across the complete shipment", () => {
   const weights = allocateShipmentWeight(10);
   assert.deepEqual(weights, [FIXED_SHIPMENT_WEIGHT_KG, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
   assert.equal(weights.reduce((total, weight) => total + weight, 0), FIXED_SHIPMENT_WEIGHT_KG);
+});
+
+test("transliterates Urdu for InstaWorld's non-Unicode invoice renderer", () => {
+  const safeText = toInstaWorldPdfSafeText("پشاور، خیبر پختونخوا");
+  assert.equal(safeText, "Peshawar, Khyber Pakhtunkhwa");
+  assert.equal(/[^\x00-\x7F]/.test(safeText), false);
 });

@@ -10,6 +10,7 @@ import {
   getPaymentType,
   normalisePhone,
   normaliseCity,
+  toInstaWorldPdfSafeText,
   truncate,
   requireInstaWorldConfig,
   type InstaWorldRequest,
@@ -80,16 +81,18 @@ function buildRequest(
       phone,
       city,
       address: truncate(
-        [
-          combined.consignee.address1,
-          combined.consignee.address2,
-          combined.consignee.city,
-          combined.consignee.province,
-          combined.consignee.zip,
-          combined.consignee.country,
-        ]
-          .filter(Boolean)
-          .join(", "),
+        toInstaWorldPdfSafeText(
+          [
+            combined.consignee.address1,
+            combined.consignee.address2,
+            combined.consignee.city,
+            combined.consignee.province,
+            combined.consignee.zip,
+            combined.consignee.country,
+          ]
+            .filter(Boolean)
+            .join(", "),
+        ),
         200,
       ),
       email,
