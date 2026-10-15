@@ -29,6 +29,26 @@ async function getAuthHeaders() {
   return {Authorization: `Bearer ${token}`};
 }
 
+async function readApiResponse(response, fallbackMessage) {
+  const text = await response.text();
+  let payload = {};
+  try {
+    payload = text ? JSON.parse(text) : {};
+  } catch {
+    payload = {message: text || fallbackMessage};
+  }
+
+  if (!response.ok) {
+    const stage = payload.stage ? `${payload.stage}: ` : "";
+    const code = payload.code ? ` [${payload.code}]` : "";
+    const suggestion = payload.suggestedAddress
+      ? ` Suggested provider result: ${payload.suggestedAddress}`
+      : "";
+    throw new Error(`${stage}${payload.message || fallbackMessage}${suggestion}${code} (HTTP ${response.status})`);
+  }
+  return payload;
+}
+
 /**
  * Extension entry point.
  *
@@ -50,6 +70,7 @@ function Extension() {
   const [search, setSearch] = useState("");
   const [results, setResults] = useState([]);
   const [combined, setCombined] = useState(null);
+  const [verifiedAddress, setVerifiedAddress] = useState(null);
   const [loading, setLoading] = useState(Boolean(currentOrderId));
   const [searching, setSearching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -76,22 +97,22 @@ function Extension() {
         headers: {"Content-Type": "application/json", ...authHeaders},
         body: JSON.stringify({orderIds}),
       });
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload?.message || "The selected orders cannot be combined.");
-      }
+      const payload = await readApiResponse(response, "The selected orders cannot be combined.");
       if (payload.orders) {
         setSelectedOrders(payload.orders);
         setCombined(null);
+        setVerifiedAddress(null);
         return;
       }
       setSelectedOrders(payload.combined.orders || []);
       setCombined(payload.combined);
+      setVerifiedAddress(payload.verifiedAddress || null);
       // Weight is always fixed at 0.8 kg
       setCityWarning(payload.cityWarning || "");
     } catch (previewError) {
       setError(previewError instanceof Error ? previewError.message : "Unable to validate orders.");
       setCombined(null);
+      setVerifiedAddress(null);
     } finally {
       setLoading(false);
     }
@@ -107,8 +128,7 @@ function Extension() {
         `${APP_URL}/api/instaworld-orders?q=${encodeURIComponent(search.trim())}`,
         {headers: {...authHeaders}},
       );
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload?.message || "Order search failed.");
+      const payload = await readApiResponse(response, "Order search failed.");
       setResults(payload.orders || []);
     } catch (searchError) {
       setError(searchError instanceof Error ? searchError.message : "Order search failed.");
@@ -150,10 +170,8 @@ function Extension() {
         // Weight is always fixed at 0.8 kg
         body: JSON.stringify({orderIds: selectedOrderIds, declaredWeight: 0.8}),
       });
-      const payload = await response.json();
-      if (!response.ok || !payload.success) {
-        throw new Error(payload?.message || "Booking failed.");
-      }
+      const payload = await readApiResponse(response, "Booking failed.");
+      if (!payload.success) throw new Error(payload?.message || "Booking failed.");
       setMessage(`Shipment booked successfully. Tracking number: ${payload.trackingNumber}`);
     } catch (bookingError) {
       setError(bookingError instanceof Error ? bookingError.message : "Booking failed.");
@@ -224,6 +242,11 @@ function Extension() {
               Payment: {formatMoney(combined.payment?.amountDue, combined.payment?.currencyCode)} ({combined.payment?.treatment})
             </s-text>
             <s-text>Standard weight: 0.8 kg (fixed)</s-text>
+            {verifiedAddress && (
+              <s-text>
+                Verified address ({verifiedAddress.source}): {verifiedAddress.formattedAddress}
+              </s-text>
+            )}
           </>
         )}
 

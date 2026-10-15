@@ -39,6 +39,7 @@ Set these for all environments (Production, Preview, Development):
 | `INSTAWORLD_REF_PATTERN` | Per InstaWorld contract | |
 | `INSTAWORLD_COD_PAYMENT_TYPE` | Per InstaWorld contract | |
 | `INSTAWORLD_PREPAID_PAYMENT_TYPE` | Per InstaWorld contract | |
+| `GEOCODE_MAPS_API_KEY` | geocode.maps.co | **Required for strict production address verification**; do not leave blank in Vercel |
 
 ---
 
@@ -103,6 +104,7 @@ npm run setup && npm run build
 - [ ] In Shopify Partners dashboard, confirm the extension version is **Active**
 - [ ] Open a test order in the Shopify Admin and verify the **InstaWorld Booking** action button appears
 - [ ] Confirm `INSTAWORLD_ENABLE_LIVE=false` — no live shipments should be created
+- [ ] Confirm `GEOCODE_MAPS_API_KEY` is set — bookings are blocked when an address cannot be verified
 
 ---
 

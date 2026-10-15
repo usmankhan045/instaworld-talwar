@@ -8,7 +8,7 @@ import {
   searchShopifyOrders,
 } from "../lib/shopify-orders.server";
 import { normaliseCity } from "../lib/instaworld.server";
-import { verifyAddressCity } from "../lib/address-validation.server";
+import { verifyDeliveryAddress } from "../lib/address-validation.server";
 import { authenticate } from "../shopify.server";
 
 function json(data: unknown, init?: ResponseInit) {
@@ -22,6 +22,10 @@ function json(data: unknown, init?: ResponseInit) {
       ...(init?.headers || {}),
     },
   });
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 
@@ -158,34 +162,48 @@ export async function action({ request }: ActionFunctionArgs) {
     const combined = combineOrders(orders);
 
     // Check address–city match (fail-open: only block if we get a confident mismatch)
-    const addressMismatch = await verifyAddressCity(
-      combined.consignee.address1,
-      combined.consignee.city,
-    );
-    if (addressMismatch) {
-      return json({ message: addressMismatch }, { status: 422 });
+    stage = "address/city validation";
+    const addressVerification = await verifyDeliveryAddress(combined.consignee);
+    if (!addressVerification.ok) {
+      return json(
+        {
+          code: addressVerification.code,
+          stage,
+          message: addressVerification.message,
+          detectedCity: addressVerification.detectedCity,
+          suggestedAddress: addressVerification.suggestedAddress,
+        },
+        {status: 422},
+      );
     }
 
     // Check if InstaWorld services the destination city — non-blocking warning
+    stage = "InstaWorld city serviceability check";
     const cityWarning = await checkCityServiceable(combined.consignee.city ?? "");
 
-    return json({ combined, cityWarning });
+    return json({
+      combined,
+      cityWarning,
+      verifiedAddress: addressVerification.verifiedAddress,
+    });
   } catch (error) {
     // Preserve Shopify authentication redirects and thrown responses.
     if (error instanceof Response) {
       throw error;
     }
 
+    const message = errorMessage(error);
     console.error("[InstaWorld orders API]", {
       stage,
-      message: error instanceof Error ? error.message : String(error),
+      message,
       stack: error instanceof Error ? error.stack : undefined,
     });
 
     return json(
       {
-        message:
-          "Unable to load orders. Check server logs for the failing stage.",
+        code: "ORDER_PREVIEW_FAILED",
+        stage,
+        message: `${stage} failed: ${message}`,
       },
       { status: 500 },
     );

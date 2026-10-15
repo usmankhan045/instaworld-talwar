@@ -10,6 +10,26 @@ async function getAuthHeaders() {
   return {Authorization: `Bearer ${token}`};
 }
 
+async function readApiResponse(response, fallbackMessage, allowedErrorStatuses = []) {
+  const text = await response.text();
+  let payload = {};
+  try {
+    payload = text ? JSON.parse(text) : {};
+  } catch {
+    payload = {message: text || fallbackMessage};
+  }
+
+  if (!response.ok && !allowedErrorStatuses.includes(response.status)) {
+    const stage = payload.stage ? `${payload.stage}: ` : "";
+    const code = payload.code ? ` [${payload.code}]` : "";
+    const suggestion = payload.suggestedAddress
+      ? ` Suggested provider result: ${payload.suggestedAddress}`
+      : "";
+    throw new Error(`${stage}${payload.message || fallbackMessage}${suggestion}${code} (HTTP ${response.status})`);
+  }
+  return payload;
+}
+
 export default function extension() {
   render(<BulkBookExtension />, document.body);
 }
@@ -36,9 +56,12 @@ function BulkBookExtension() {
 
   async function bookAll() {
     setRunning(true);
-    const authHeaders = await getAuthHeaders().catch(() => null);
-    if (!authHeaders) {
-      setResults((prev) => prev.map((r) => ({...r, status: "error", message: "Authentication failed."})));
+    let authHeaders;
+    try {
+      authHeaders = await getAuthHeaders();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Authentication failed.";
+      setResults((prev) => prev.map((r) => ({...r, status: "error", message: `Authentication: ${message}`})));
       setRunning(false);
       setDone(true);
       return;
@@ -53,21 +76,16 @@ function BulkBookExtension() {
           headers: {"Content-Type": "application/json", ...authHeaders},
           body: JSON.stringify({orderIds: [orderId]}),
         });
-        const previewPayload = await previewRes.json();
+        const previewPayload = await readApiResponse(previewRes, "Order preview failed.", [409]);
 
-        if (!previewRes.ok) {
-          const msg = previewPayload?.message || "Order validation failed.";
-          // 409 = already booked
-          if (previewRes.status === 409) {
-            const existing = previewPayload?.existing?.[0];
-            updateResult(orderId, {
-              status: "skipped",
-              orderNumber: previewPayload?.existing?.[0]?.shopifyOrderNumber || orderId,
-              message: `Already booked (shipment #${existing?.shipmentId ?? "?"}).`,
-            });
-          } else {
-            updateResult(orderId, {status: "error", message: msg});
-          }
+        // 409 = already booked
+        if (previewRes.status === 409) {
+          const existing = previewPayload?.existing?.[0];
+          updateResult(orderId, {
+            status: "skipped",
+            orderNumber: previewPayload?.existing?.[0]?.shopifyOrderNumber || orderId,
+            message: `Already booked (shipment #${existing?.shipmentId ?? "?"}).`,
+          });
           continue;
         }
 
@@ -99,9 +117,9 @@ function BulkBookExtension() {
             declaredWeight: 0.8,
           }),
         });
-        const bookPayload = await bookRes.json();
+        const bookPayload = await readApiResponse(bookRes, "Booking failed.");
 
-        if (!bookRes.ok || !bookPayload.success) {
+        if (!bookPayload.success) {
           updateResult(orderId, {
             orderNumber,
             status: "error",
@@ -117,7 +135,7 @@ function BulkBookExtension() {
       } catch (err) {
         updateResult(orderId, {
           status: "error",
-          message: err instanceof Error ? err.message : "Unexpected error.",
+          message: err instanceof Error ? err.message : "Unexpected error while processing this order.",
         });
       }
     }

@@ -13,6 +13,7 @@ import {
 } from "./instaworld.server";
 import {createShopifyFulfillment} from "./shopify-fulfillment.server";
 import type {ShopifyOrder} from "./shopify-orders.server";
+import {verifyDeliveryAddress} from "./address-validation.server";
 
 const RESERVATION_LEASE_MS = 5 * 60 * 1000;
 
@@ -105,6 +106,21 @@ export async function bookCombinedOrders(
   admin?: unknown,
 ) {
   const combined = combineOrders(orders, declaredWeight);
+  const addressVerification = await verifyDeliveryAddress(combined.consignee);
+  if (!addressVerification.ok) {
+    throw new Error(addressVerification.message);
+  }
+  const verifiedCombined = {
+    ...combined,
+    consignee: {
+      ...combined.consignee,
+      address1: addressVerification.verifiedAddress.formattedAddress,
+      address2: null,
+      city: addressVerification.verifiedAddress.city,
+      province: addressVerification.verifiedAddress.province || combined.consignee.province,
+      zip: addressVerification.verifiedAddress.postalCode || combined.consignee.zip,
+    },
+  };
   const attemptId = randomUUID();
   const idempotencyKey = randomUUID();
   // Use Shopify order number(s) as the human-readable refNo (e.g. "1006" or "1006+1007")
@@ -112,7 +128,7 @@ export async function bookCombinedOrders(
   const prefix = process.env.INSTAWORLD_REF_PREFIX || "";
   const refNo = `${prefix}${orderNumbers}`.slice(0, 200);
   const leaseExpiresAt = new Date(Date.now() + RESERVATION_LEASE_MS);
-  const requestPayload = buildRequest(combined, orders, refNo);
+  const requestPayload = buildRequest(verifiedCombined, orders, refNo);
 
   const attempt = await prisma.$transaction(async (tx) => {
     const existing = await tx.shipmentOrder.findFirst({

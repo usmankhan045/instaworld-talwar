@@ -18,6 +18,10 @@ function json(data: unknown, init?: ResponseInit) {
   });
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export async function loader({request}: LoaderFunctionArgs) {
   if (request.method === "OPTIONS") {
     return new Response(null, {
@@ -80,19 +84,26 @@ export async function action({request}: ActionFunctionArgs) {
   const declaredWeight = Number(body?.declaredWeight);
 
   if (orderIds.length < 1 || new Set(orderIds).size !== orderIds.length) {
-    return json({message: "Select at least two different orders."}, {status: 400});
+    return json({message: "Select at least one order."}, {status: 400});
   }
   if (!Number.isFinite(declaredWeight) || declaredWeight <= 0) {
     return json({message: "Declared weight must be a positive number."}, {status: 400});
   }
 
-  const orders = await getShopifyOrders(admin, orderIds);
+  let stage = "Shopify order retrieval";
   try {
+    const orders = await getShopifyOrders(admin, orderIds);
+    stage = "InstaWorld booking and database reservation";
     const result = await bookCombinedOrders(session.shop, orders, declaredWeight, admin);
     return json({success: true, ...result});
   } catch (error) {
     return json(
-      {success: false, message: error instanceof Error ? error.message : "Booking failed."},
+      {
+        success: false,
+        code: "BOOKING_FAILED",
+        stage,
+        message: `${stage} failed: ${errorMessage(error)}`,
+      },
       {status: 409},
     );
   }
