@@ -164,7 +164,6 @@ export async function updateShopifyFulfillmentTracking(
   admin: any,
   fulfillmentId: string,
   trackingNumber: string,
-  shipmentStatus: ShopifyShipmentStatus,
 ): Promise<boolean> {
   const data = await gql(
     admin,

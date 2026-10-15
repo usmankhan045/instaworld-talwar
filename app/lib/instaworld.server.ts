@@ -74,7 +74,7 @@ export function normalisePhone(raw: string | null | undefined): string {
  */
 export function normaliseCity(raw: string | null | undefined): string {
   if (!raw) return "";
-  let city = raw.trim().toUpperCase();
+  const city = raw.trim().toUpperCase();
 
   // Common alternate spellings / abbreviations seen in Pakistani Shopify stores
   const aliases: Record<string, string> = {

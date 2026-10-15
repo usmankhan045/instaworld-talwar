@@ -1,11 +1,11 @@
 /**
  * GET /api/instaworld-sync
  *
- * Called every 15 minutes by Vercel Cron (vercel.json).
+ * Called every 15 minutes by the GitHub Actions workflow.
  * Also callable manually for testing.
  *
  * Security: requires Authorization: Bearer <CRON_SECRET> header,
- * OR Vercel sends x-vercel-signature which we verify.
+ * OR the GitHub Actions token header.
  * For simplicity we use a shared secret checked against CRON_SECRET env var.
  *
  * Flow:
@@ -55,11 +55,21 @@ function isAuthorized(request: Request): boolean {
   return false;
 }
 
-async function fetchInstaWorldShipments(updatedSince: Date): Promise<any[]> {
+type InstaWorldShipment = {
+  tracking_number?: string;
+  status?: {code?: string};
+};
+
+type InstaWorldShipmentsResponse = {
+  data?: InstaWorldShipment[];
+  meta?: {next_cursor?: string | null};
+};
+
+async function fetchInstaWorldShipments(updatedSince: Date): Promise<InstaWorldShipment[]> {
   const apiKey = process.env.INSTAWORLD_API_KEY;
   if (!apiKey) return [];
 
-  const allShipments: any[] = [];
+  const allShipments: InstaWorldShipment[] = [];
   let cursor: string | null = null;
 
   do {
@@ -79,8 +89,8 @@ async function fetchInstaWorldShipments(updatedSince: Date): Promise<any[]> {
       break;
     }
 
-    const payload = await res.json();
-    const data: any[] = Array.isArray(payload?.data) ? payload.data : [];
+    const payload = (await res.json()) as InstaWorldShipmentsResponse;
+    const data = Array.isArray(payload.data) ? payload.data : [];
     allShipments.push(...data);
     cursor = payload?.meta?.next_cursor ?? null;
   } while (cursor);
@@ -186,7 +196,6 @@ export async function loader({request}: LoaderFunctionArgs) {
                 admin,
                 fulfillmentId,
                 trackingNumber,
-                shipmentStatus,
               );
             }
 

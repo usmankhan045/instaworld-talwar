@@ -145,8 +145,8 @@ test("foreign-key relations are declared in schema", () => {
     "schema must declare onDelete: Restrict for FK relations",
   );
   // Relation fields exist
-  assert.ok(schema.includes("orders         ShipmentOrder[]"), "Shipment must have orders relation");
-  assert.ok(schema.includes("attempts       BookingAttempt[]"), "Shipment must have attempts relation");
+  assert.match(schema, /orders\s+ShipmentOrder\[\]/, "Shipment must have orders relation");
+  assert.match(schema, /attempts\s+BookingAttempt\[\]/, "Shipment must have attempts relation");
 });
 
 // ---------------------------------------------------------------------------
