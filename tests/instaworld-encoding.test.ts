@@ -28,15 +28,15 @@ test("allocates one fixed weight across the complete shipment", () => {
   assert.equal(weights.reduce((total, weight) => total + weight, 0), FIXED_SHIPMENT_WEIGHT_KG);
 });
 
-test("transliterates Urdu for InstaWorld's non-Unicode invoice renderer", () => {
+test("removes Urdu instead of inventing Roman-Urdu invoice text", () => {
   const safeText = toInstaWorldPdfSafeText("پشاور، خیبر پختونخوا");
-  assert.equal(safeText, "Peshawar, Khyber Pakhtunkhwa");
+  assert.equal(safeText, "");
   assert.equal(/[^\x00-\x7F]/.test(safeText), false);
 });
 
 test("books one clean English address without duplicate components", () => {
   assert.equal(
     buildInstaWorldAddress(["House 13, Peshawar", "Peshawar", "خیبر پختونخوا", "25000", "Pakistan"]),
-    "House 13, Peshawar, Khyber Pakhtunkhwa, 25000, Pakistan",
+    "House 13, Peshawar, 25000, Pakistan",
   );
 });

@@ -176,24 +176,15 @@ export function truncate(value: string, max: number): string {
   return value.slice(0, max).replace(/\s+\S*$/, "").trim() || value.slice(0, max).trim();
 }
 
-// InstaWorld's invoice PDF currently uses WinAnsi fonts. Keep the original
-// Unicode address in Shopify, but send a readable Roman-Urdu fallback to the
-// courier invoice until InstaWorld embeds an Urdu-capable font.
-const URDU_TRANSLITERATION: Record<string, string> = {
-  آ: "aa", ا: "a", ب: "b", پ: "p", ت: "t", ٹ: "t", ث: "s", ج: "j", چ: "ch", ح: "h", خ: "kh",
-  د: "d", ڈ: "d", ذ: "z", ر: "r", ڑ: "r", ز: "z", ژ: "zh", س: "s", ش: "sh", ص: "s", ض: "z",
-  ط: "t", ظ: "z", ع: "a", غ: "gh", ف: "f", ق: "q", ک: "k", گ: "g", ل: "l", م: "m", ن: "n",
-  ں: "n", و: "w", ہ: "h", ھ: "h", ء: "'", ی: "y", ے: "e", ئ: "y", ۓ: "e",
-};
-
 export function toInstaWorldPdfSafeText(value: string): string {
   return value
-    .replace(/پشاور/g, "Peshawar")
-    .replace(/خیبر\s+پختونخوا/g, "Khyber Pakhtunkhwa")
-    .replace(/،/g, ",")
-    .replace(/[\u0600-\u06FF]/g, (character) => URDU_TRANSLITERATION[character] ?? "")
+    // InstaWorld's PDF cannot render Urdu. Preserve only the address's
+    // existing English/ASCII text; never invent Roman-Urdu text.
+    .replace(/[\u0600-\u06FF]/g, "")
     .replace(/[\u200C\u200D\u064B-\u065F]/g, "")
     .replace(/\s{2,}/g, " ")
+    .replace(/\s*,\s*(,\s*)+/g, ", ")
+    .replace(/^\s*,\s*|\s*,\s*$/g, "")
     .trim();
 }
 
