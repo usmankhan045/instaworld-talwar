@@ -197,6 +197,24 @@ export function toInstaWorldPdfSafeText(value: string): string {
     .trim();
 }
 
+export function buildInstaWorldAddress(parts: Array<string | null | undefined>): string {
+  const seen = new Set<string>();
+  const accepted: string[] = [];
+  return parts
+    .map((part) => toInstaWorldPdfSafeText(part?.trim() || ""))
+    .filter((part) => {
+      const key = part.toLocaleLowerCase();
+      const alreadyIncluded = accepted.some((previous) =>
+        previous.split(",").some((segment) => segment.trim().toLocaleLowerCase() === key),
+      );
+      if (!part || seen.has(key) || alreadyIncluded) return false;
+      seen.add(key);
+      accepted.push(part);
+      return true;
+    })
+    .join(", ");
+}
+
 /** Keep product lines visible while declaring one fixed weight for the parcel. */
 export function allocateShipmentWeight(itemCount: number): number[] {
   if (itemCount <= 0) return [];

@@ -4,6 +4,7 @@ import prisma from "../db.server";
 import {combineOrders} from "./order-combination.server";
 import {
   allocateShipmentWeight,
+  buildInstaWorldAddress,
   createShipment,
   FIXED_SHIPMENT_WEIGHT_KG,
   findShipmentByReference,
@@ -80,21 +81,14 @@ function buildRequest(
       ...(last_name ? {last_name} : {}),
       phone,
       city,
-      address: truncate(
-        toInstaWorldPdfSafeText(
-          [
-            combined.consignee.address1,
-            combined.consignee.address2,
-            combined.consignee.city,
-            combined.consignee.province,
-            combined.consignee.zip,
-            combined.consignee.country,
-          ]
-            .filter(Boolean)
-            .join(", "),
-        ),
-        200,
-      ),
+      address: truncate(buildInstaWorldAddress([
+        combined.consignee.address1,
+        combined.consignee.address2,
+        combined.consignee.city,
+        combined.consignee.province,
+        combined.consignee.zip,
+        combined.consignee.country,
+      ]), 200),
       email,
     },
     items: combined.items.map((item, index) => ({

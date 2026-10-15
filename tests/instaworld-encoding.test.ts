@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   allocateShipmentWeight,
+  buildInstaWorldAddress,
   FIXED_SHIPMENT_WEIGHT_KG,
   stringifyForInstaWorld,
   toInstaWorldPdfSafeText,
@@ -31,4 +32,11 @@ test("transliterates Urdu for InstaWorld's non-Unicode invoice renderer", () => 
   const safeText = toInstaWorldPdfSafeText("پشاور، خیبر پختونخوا");
   assert.equal(safeText, "Peshawar, Khyber Pakhtunkhwa");
   assert.equal(/[^\x00-\x7F]/.test(safeText), false);
+});
+
+test("books one clean English address without duplicate components", () => {
+  assert.equal(
+    buildInstaWorldAddress(["House 13, Peshawar", "Peshawar", "خیبر پختونخوا", "25000", "Pakistan"]),
+    "House 13, Peshawar, Khyber Pakhtunkhwa, 25000, Pakistan",
+  );
 });
