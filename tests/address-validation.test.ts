@@ -111,3 +111,33 @@ test("rejects a result that cannot confirm the supplied postal code", () => {
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.code, "POSTAL_CODE_MISMATCH");
 });
+
+test("accepts a rural landmark address without inventing a street address", () => {
+  const result = validateGeocodeCandidate(
+    {
+      display_name: "Tarnab, Charsadda, Khyber Pakhtunkhwa, Pakistan",
+      address: {
+        village: "Tarnab",
+        county: "Charsadda",
+        state: "Khyber Pakhtunkhwa",
+        country: "Pakistan",
+        country_code: "pk",
+      },
+    },
+    {
+      address1: "Village Nawan Kali, P.O. Tarnab, near Al-Rehman Shop",
+      city: "Charsadda",
+      province: "Khyber Pakhtunkhwa",
+      zip: "24600",
+      country: "Pakistan",
+      countryCode: "PK",
+    },
+  );
+
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.verifiedAddress.confidence, "locality");
+    assert.match(result.verifiedAddress.formattedAddress, /Nawan Kali/);
+    assert.equal(result.verifiedAddress.postalCode, "24600");
+  }
+});
