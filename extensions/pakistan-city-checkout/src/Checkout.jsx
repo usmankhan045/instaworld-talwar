@@ -33,11 +33,10 @@ function Extension() {
   ).slice(0, 50);
 
   useBuyerJourneyIntercept(({canBlockProgress}) => {
-    if (!isPakistan || (!canBlockProgress && isPakistanCity(currentCity) && selectedCourier)) return {behavior: "allow"};
+    if (!isPakistan || (!canBlockProgress && isPakistanCity(currentCity))) return {behavior: "allow"};
     if (!canBlockProgress) return {behavior: "allow"};
     const missing = [
       !isPakistanCity(currentCity) ? "a valid Pakistan city" : "",
-      !selectedCourier ? "a courier (TCS or PostEx)" : "",
     ].filter(Boolean).join(" and ");
     return {
       behavior: "block",
@@ -95,14 +94,13 @@ function Extension() {
         label="Select courier"
         value={selectedCourier}
         onChange={handleCourierChange}
-        error={error || (!selectedCourier ? "Please select TCS or PostEx." : undefined)}
-        required
+        error={error || undefined}
       >
-        <s-option value="" disabled>Select a courier</s-option>
+        <s-option value="">No courier selected</s-option>
         <s-option value="TCS">TCS</s-option>
         <s-option value="POSTEX">PostEx</s-option>
       </s-select>
-      <s-text tone="neutral">Select both the city and courier. Checkout cannot continue without them.</s-text>
+      <s-text tone="neutral">Courier selection is optional. You can choose it when available.</s-text>
     </s-section>
   );
 }
