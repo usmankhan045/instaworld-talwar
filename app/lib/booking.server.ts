@@ -64,8 +64,8 @@ function buildRequest(
   // City: normalise + alias map
   const city = normaliseCity(combined.consignee.city);
 
-  // Email: use the primary order's email, or "nil" if not provided
-  const email = orders[0]?.email || "nil";
+  // Email is optional; omit it when Shopify did not provide one.
+  const email = orders[0]?.email?.trim() || undefined;
   const shipmentWeights = allocateShipmentWeight(combined.items.length);
 
   return {
@@ -89,7 +89,7 @@ function buildRequest(
         combined.consignee.zip,
         combined.consignee.country,
       ]), 200),
-      email,
+      ...(email ? {email} : {}),
     },
     items: combined.items.map((item, index) => ({
       title: item.title ? truncate(item.title, 100) : undefined,
