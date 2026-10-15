@@ -1,0 +1,50 @@
+# Learn more about configuring your checkout UI extension:
+# https://shopify.dev/docs/api/checkout-ui-extensions/latest/configuration
+
+# The version of APIs your extension will receive. Learn more:
+# https://shopify.dev/docs/api/usage/versioning
+api_version = "2026-10"
+
+[[extensions]]
+name = "pakistan-city-checkout"
+handle = "pakistan-city-checkout"
+type = "ui_extension"
+uid = "fa3a6e81-4f6e-6b83-9de1-08e92c3a137b08490163"
+
+# Controls where in Shopify your extension will be injected,
+# and the file that contains your extension’s source code. Learn more:
+# https://shopify.dev/docs/api/checkout-ui-extensions/latest/targets
+
+[[extensions.targeting]]
+module = "./src/Checkout.jsx"
+target = "purchase.checkout.delivery-address.render-after"
+
+[extensions.capabilities]
+# Gives your extension access to directly query Shopify’s storefront API.
+# https://shopify.dev/docs/apps/build/checkout/capabilities#storefront-api-access
+api_access = true
+
+# Gives your extension access to make external network calls, using the
+# JavaScript `fetch()` API. Learn more:
+# https://shopify.dev/docs/apps/build/checkout/capabilities#network-access
+
+# network_access = true
+
+# Prevent checkout from continuing when the shipping city is not one of the
+# canonical Pakistan city names shown by this extension.
+block_progress = true
+
+# Learn more about loading metafields on checkout resources, including the cart,
+# products, and customers:
+# https://shopify.dev/docs/api/checkout-ui-extensions/latest#configuration
+
+# Defines settings that will be collected from merchants installing
+# your extension. Learn more:
+# https://shopify.dev/docs/api/checkout-ui-extensions/latest#configuration
+
+# [extensions.settings]
+# [[extensions.settings.fields]]
+# key = "banner_title"
+# type = "single_line_text_field"
+# name = "Banner title"
+# description = "Enter a title for the banner"
