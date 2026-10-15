@@ -138,6 +138,18 @@ function textMentionsCity(text: string, city: string): boolean {
   return cityTerms(city).some((term) => normalizedText.includes(term));
 }
 
+function citiesMentionedInText(text: string): string[] {
+  const normalizedText = normalize(text);
+  return Object.entries(CITY_ALIASES)
+    .filter(([canonical, aliases]) => {
+      const terms = [canonical.replace(/_/g, " "), ...aliases]
+        .map(normalize)
+        .filter((term) => term.length >= 3);
+      return terms.some((term) => normalizedText.includes(term));
+    })
+    .map(([canonical]) => canonical);
+}
+
 function cityMatches(geocodedCity: string, selectedCity: string): boolean {
   return Boolean(geocodedCity && selectedCity) && canonicalCity(geocodedCity) === canonicalCity(selectedCity);
 }
@@ -153,6 +165,26 @@ function extractCity(address: AddressComponents, requestedCity?: string): string
     names[0] ||
     ""
   ).trim();
+}
+
+function cityFromCandidateText(candidate: GeocodeCandidate, requestedCity: string): string {
+  const address = candidate.address ?? {};
+  const structuredNames = [
+    address.city,
+    address.town,
+    address.municipality,
+    address.county,
+    address.state_district,
+    address.village,
+    address.suburb,
+  ].filter((value): value is string => Boolean(value?.trim()));
+  const structuredMatch = structuredNames.find((name) => cityMatches(name, requestedCity));
+  if (structuredMatch) return structuredMatch.trim();
+
+  const textMatch = citiesMentionedInText(candidate.display_name || "").find((city) =>
+    cityMatches(city, requestedCity),
+  );
+  return textMatch || extractCity(address, requestedCity);
 }
 
 function candidateMatchesCity(address: AddressComponents, selectedCity: string): boolean {
@@ -294,15 +326,18 @@ function candidateResult(
 ): AddressVerificationResult {
   const resultAddress = candidate.address ?? {};
   const formattedAddress = formatCandidate(candidate);
-  const detectedCity = extractCity(resultAddress, String(input.city || ""));
+  const requestedCity = String(input.city || "").trim();
+  const detectedCity = cityFromCandidateText(candidate, requestedCity);
   const hasExplicitCandidateCity = [resultAddress.city, resultAddress.town, resultAddress.municipality]
     .some((value) => Boolean(value?.trim()));
   const cityMatchesRequested =
     candidateMatchesCity(resultAddress, String(input.city || "")) ||
-    (!hasExplicitCandidateCity && textMentionsCity(formattedAddress, String(input.city || "")));
-  const inputMentionsRequestedCity = textMentionsCity(
-    [input.address1, input.address2].filter(Boolean).join(" "),
-    String(input.city || ""),
+    (!hasExplicitCandidateCity && textMentionsCity(formattedAddress, requestedCity));
+  const customerAddressText = [input.address1, input.address2].filter(Boolean).join(" ");
+  const inputMentionsRequestedCity = textMentionsCity(customerAddressText, requestedCity);
+  const customerAddressCities = citiesMentionedInText(customerAddressText);
+  const customerExplicitlyContradictsCity = customerAddressCities.some(
+    (city) => city !== canonicalCity(requestedCity),
   );
   const streetLevel = hasStreetLevelResult(resultAddress);
 
@@ -322,17 +357,19 @@ function candidateResult(
     // customer's free-text address explicitly names the requested city. In
     // that case preserve the customer address and warn; do not reject a real
     // delivery because one provider chose the wrong hierarchy field.
-    if (inputMentionsRequestedCity) {
+    if (inputMentionsRequestedCity || !customerExplicitlyContradictsCity) {
       return {
         ok: true,
         verifiedAddress: {
           formattedAddress: originalAddress(input),
-          city: String(input.city).trim(),
+          city: requestedCity,
           province: input.province?.trim() || extractProvince(resultAddress),
           postalCode: input.zip?.trim() || resultAddress.postcode?.trim() || null,
           source,
           confidence: "locality",
-          warning: "The address names the requested city, but the map provider returned a different nearby area. The original customer address will be used.",
+          warning: inputMentionsRequestedCity
+            ? "The address names the requested city, but the map provider returned a different nearby area. The original customer address will be used."
+            : "The map provider returned a different nearby area, but the customer address does not name a conflicting city. The original customer address will be used.",
         },
       };
     }

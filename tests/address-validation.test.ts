@@ -47,11 +47,33 @@ test("rejects a verified address that belongs to a different city", () => {
       display_name: "House 12, Main Boulevard, Gulberg, Karachi, Pakistan",
       address: {...lahoreCandidate.address, city: "Karachi"},
     },
-    address,
+    {...address, address1: "House 12, Main Boulevard Gulberg, Karachi"},
   );
 
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.code, "ADDRESS_CITY_MISMATCH");
+});
+
+test("does not reject an incomplete local address because a geocoder chose another nearby area", () => {
+  const result = validateGeocodeCandidate(
+    {
+      display_name: "Peshawar, Pakistan",
+      address: {
+        city: "Peshawar",
+        country: "Pakistan",
+        country_code: "pk",
+      },
+    },
+    {
+      address1: "House 13, G-11 Sector 3",
+      city: "Islamabad",
+      country: "Pakistan",
+      countryCode: "PK",
+    },
+  );
+
+  assert.equal(result.ok, true);
+  if (result.ok) assert.match(result.verifiedAddress.warning || "", /different nearby area/);
 });
 
 test("keeps a city explicitly named in the customer address when the provider chooses a nearby area", () => {
@@ -80,7 +102,7 @@ test("keeps a city explicitly named in the customer address when the provider ch
   }
 });
 
-test("does not let a matching district override a different explicit city", () => {
+test("does not let a matching district override a city explicitly named in the address", () => {
   const result = validateGeocodeCandidate(
     {
       display_name: "Peshawar, Charsadda District, Pakistan",
@@ -94,8 +116,8 @@ test("does not let a matching district override a different explicit city", () =
     {...address, city: "Charsadda"},
   );
 
-  assert.equal(result.ok, false);
-  if (!result.ok) assert.equal(result.code, "ADDRESS_CITY_MISMATCH");
+  assert.equal(result.ok, true);
+  if (result.ok) assert.match(result.verifiedAddress.warning || "", /different nearby area/);
 });
 
 test("keeps a city-matched address when the provider has a broader postal code", () => {
