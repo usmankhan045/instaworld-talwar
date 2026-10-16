@@ -54,4 +54,6 @@ test("defines every fixed recording required by the IVR flow", () => {
     "orderChoice",
     "orderConfirmed",
   ]);
+  assert.match(FIXED_IVR_RECORDINGS.noInputRetry.script, /ایک یا دو/);
+  assert.doesNotMatch(FIXED_IVR_RECORDINGS.noInputRetry.script, /کال ختم/);
 });

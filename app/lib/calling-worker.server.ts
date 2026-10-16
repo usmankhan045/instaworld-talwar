@@ -1,8 +1,5 @@
-import {randomUUID} from "node:crypto";
-
 import type {CallAttempt, CallJob} from "@prisma/client";
 
-import prisma from "../db.server.ts";
 import {buildCallAudioManifest, type CallAudioManifest} from "./calling-audio.server.ts";
 
 export const CALL_JOB_LEASE_MS = 5 * 60 * 1000;
@@ -33,81 +30,18 @@ export type DryRunCallPlan = {
   willBookShipment: false;
 };
 
-function leaseExpiry(now: Date): Date {
-  return new Date(now.getTime() + CALL_JOB_LEASE_MS);
-}
-
-/**
- * Atomically claim the oldest eligible queued job and create its attempt.
- * No external call is made by this function.
- */
-export async function claimNextCallJob(now = new Date()): Promise<{
+/** Shopify order jobs are intentionally dormant until explicit integration. */
+export async function claimNextCallJob(): Promise<{
   job: QueuedCallJob;
   attempt: CallAttempt;
   leaseToken: string;
 } | null> {
-  return prisma.$transaction(async (tx) => {
-    const candidate = await tx.callJob.findFirst({
-      where: {
-        callStatus: "queued",
-        OR: [{nextAttemptAt: null}, {nextAttemptAt: {lte: now}}],
-      },
-      orderBy: [{createdAt: "asc"}, {id: "asc"}],
-    });
-
-    if (!candidate) return null;
-
-    const leaseToken = randomUUID();
-    const leaseExpiresAt = leaseExpiry(now);
-    const claimed = await tx.callJob.updateMany({
-      where: {
-        id: candidate.id,
-        callStatus: "queued",
-        OR: [{nextAttemptAt: null}, {nextAttemptAt: {lte: now}}],
-      },
-      data: {
-        callStatus: "preparing_audio",
-        attemptCount: {increment: 1},
-        activeLeaseToken: leaseToken,
-        leaseExpiresAt,
-      },
-    });
-
-    if (claimed.count !== 1) return null;
-
-    const attempt = await tx.callAttempt.create({
-      data: {
-        callJobId: candidate.id,
-        attemptNumber: candidate.attemptCount + 1,
-        status: "created",
-      },
-    });
-
-    const job = await tx.callJob.update({
-      where: {id: candidate.id},
-      data: {lastCallAttemptId: attempt.id},
-    });
-
-    return {job, attempt, leaseToken};
-  });
+  return null;
 }
 
-/** Return expired preparation leases to the queue without making a call. */
-export async function releaseExpiredCallJobLeases(now = new Date()): Promise<number> {
-  const result = await prisma.callJob.updateMany({
-    where: {
-      callStatus: "preparing_audio",
-      leaseExpiresAt: {lt: now},
-    },
-    data: {
-      callStatus: "queued",
-      activeLeaseToken: null,
-      leaseExpiresAt: null,
-      nextAttemptAt: now,
-    },
-  });
-
-  return result.count;
+/** Historical app DB rows are never recycled by the standalone worker. */
+export async function releaseExpiredCallJobLeases(): Promise<number> {
+  return 0;
 }
 
 /**

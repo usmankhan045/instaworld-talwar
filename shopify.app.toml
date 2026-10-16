@@ -20,10 +20,6 @@ api_version = "2026-10"
   uri = "/webhooks/app/scopes_update"
   topics = [ "app/scopes_update" ]
 
-  [[webhooks.subscriptions]]
-  uri = "/webhooks/orders/create"
-  topics = [ "orders/create" ]
-
 [auth]
 redirect_urls = [ "https://app.talwarstore.com/api/auth" ]
 

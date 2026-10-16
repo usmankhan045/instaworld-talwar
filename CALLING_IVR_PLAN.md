@@ -1,12 +1,47 @@
 # Talwar Store Automated Order-Confirmation IVR Plan
 
-Status: Implementation in progress — no outbound calls are enabled.
+Status: Standalone implementation in progress — Shopify order integration is paused.
 
 Owner: Talwar Store
 
 Application: `instaworld-talwar`
 
 Last updated: 2026-10-16
+
+## Current build boundary
+
+Build and verify the IVR as an independent test system first. It must accept
+only explicitly created test jobs, use a separate datastore, and call only
+allowlisted test numbers. The Shopify app's `orders/create` subscription is
+removed and its old webhook route acknowledges any delayed deliveries without
+creating call jobs. The existing `CallJob` rows in the app database are
+historical only; the standalone worker must never read them. The current
+booking, fulfillment, and TCS flows are unchanged.
+
+This isolation is a source-code boundary until deployment: pushing the repo
+alone does not prove that the running app has switched to the inert webhook.
+Removing Shopify's existing subscription also requires a separate app-config
+deployment. Verify both before claiming live order ingestion is disconnected.
+
+The later Shopify connection is a separate go-live step: after the standalone
+call flow, audio, retries, hangups, provider quality, and duplicate-event tests
+pass, explicitly re-enable order ingestion and then add the confirmed-result
+booking gate. Until that decision, no Shopify order may enter the standalone
+queue and no IVR result may book a shipment.
+
+Standalone progress: an isolated SQLite-backed test API, simulated calling,
+allowlisted test numbers, Pakistan calling hours, retry state machine, Piper
+audio renderer, and an Asterisk AMI/dialplan adapter are implemented. The
+simulated path is automated-test verified. The physical PBX path is **not**
+verified yet: it still requires a VPS, recorded fixed prompts, an Urdu voice
+model, a test SIP trunk, a verified caller ID, and live DTMF/quality tests.
+There is no customer-order or TCS integration in the standalone service.
+
+Connecting it later requires a separate explicit change and acceptance run:
+restore the `orders/create` subscription, map Shopify orders into the
+standalone queue, persist call confirmations back to the app, and enable TCS
+booking only after a durable same-attempt two-key confirmation. Do not make
+those changes as part of standalone development.
 
 ## 1. Objective
 
@@ -37,7 +72,7 @@ This is a deterministic IVR, not a conversational AI agent.
 - The system must never spoof an unrelated caller ID.
 - Outbound calling must remain disabled until the SIP provider, caller ID, audio quality, and DTMF behavior pass the test plan.
 
-## 3. Final architecture
+## 3. Target architecture after the later Shopify connection
 
 ```text
 Shopify orders/create webhook
@@ -87,7 +122,7 @@ Existing TCS booking service
 
 The system generates one personalized audio segment containing the customer name and product name, followed by a fixed recording:
 
-> السلام علیکم [customer name] صاحب/صاحبہ، ٹالور اسٹور سے آپ کا [product name] کا آرڈر موصول ہوا ہے۔
+> السلام علیکم [customer name]، تلوار اسٹور سے آپ کا [product name] کا آرڈر موصول ہوا ہے۔
 
 > آرڈر کنفرم کرنے کے لیے ایک دبائیں، منسوخ کرنے کے لیے دو دبائیں۔
 
@@ -431,6 +466,10 @@ Do not add WhatsApp controls in the first release.
 
 ## 14. Development phases
 
+The current standalone build precedes Phase 0's Shopify integration. The
+`orders/create` webhook and TCS booking work below are future integration
+tasks, not active inputs/outputs while this boundary is in force.
+
 ### Phase 0 — design and dry-run preparation
 
 - Confirm SIP provider and caller-ID path.
@@ -536,10 +575,10 @@ The feature is ready only when:
 
 ## 17. Immediate next implementation order
 
-Progress as of 2026-10-16: steps 1–6 are implemented. Phase 1 host preparation
-for step 7 is in `infra/asterisk/`. A test VPS, fixed recordings, and SIP trunk
-are still needed to run the live Asterisk checks. The call worker remains in
-dry-run mode.
+Progress as of 2026-10-16: earlier app-side prototypes for steps 1–6 exist,
+but Shopify order ingestion has been disabled. A standalone test system is now
+the active workstream. Phase 1 host preparation is in `infra/asterisk/`. A test
+VPS, fixed recordings, and SIP trunk are still needed for live Asterisk checks.
 
 1. Add `CallJob` and `CallAttempt` Prisma models.
 2. Add the migration and test fixtures.

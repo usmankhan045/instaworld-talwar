@@ -13,19 +13,19 @@ export const FIXED_IVR_RECORDINGS = {
   },
   orderCancelled: {
     fileKey: "order-cancelled.wav",
-    script: "آپ کا آرڈر منسوخ کر دیا گیا ہے۔ ٹالور اسٹور سے رابطہ کرنے کا شکریہ۔",
+    script: "آپ کا آرڈر منسوخ کر دیا گیا ہے۔ تلوار اسٹور سے رابطہ کرنے کا شکریہ۔",
   },
   noInputRetry: {
     fileKey: "no-input-retry.wav",
-    script: "آپ کی طرف سے کوئی جواب موصول نہیں ہوا۔ دوبارہ کوشش کرنے کے لیے ایک دبائیں، کال ختم کرنے کے لیے دو دبائیں۔",
+    script: "آپ کی طرف سے کوئی جواب موصول نہیں ہوا۔ براہ کرم دوبارہ سوال سن کر ایک یا دو دبائیں۔",
   },
   invalidInput: {
     fileKey: "invalid-input.wav",
-    script: "براہ کرم دیے گئے آپشنز میں سے ایک دبائیں۔",
+    script: "براہ کرم پہلے بتائے گئے آپشن کے مطابق ایک یا دو دبائیں۔",
   },
   addressNeedsReview: {
     fileKey: "address-needs-review.wav",
-    script: "آپ کا پتہ تصدیق کے لیے روک دیا گیا ہے۔ ٹالور اسٹور سے رابطہ کرنے کا شکریہ۔",
+    script: "آپ کا پتہ تصدیق کے لیے روک دیا گیا ہے۔ تلوار اسٹور سے رابطہ کرنے کا شکریہ۔",
   },
 } as const;
 
@@ -104,7 +104,7 @@ export function buildCallAudioManifest(job: CallingAudioJob): CallAudioManifest 
     dynamicSegments: [
       {
         key: "greeting",
-        text: `السلام علیکم ${customerName} صاحب یا صاحبہ، ٹالور اسٹور سے آپ کا ${productSummary} کا آرڈر موصول ہوا ہے۔`,
+        text: `السلام علیکم ${customerName}، تلوار اسٹور سے آپ کا ${productSummary} کا آرڈر موصول ہوا ہے۔`,
         outputFileKey: `orders/${job.id}/greeting.wav`,
       },
       {

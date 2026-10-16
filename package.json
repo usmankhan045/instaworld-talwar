@@ -19,7 +19,8 @@
     "graphql-codegen": "graphql-codegen",
     "vite": "vite",
     "typecheck": "react-router typegen && tsc --noEmit",
-    "test": "node --experimental-strip-types --test tests/*.test.ts"
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "ivr:standalone": "node --experimental-strip-types ivr-standalone/server.ts"
   },
   "type": "module",
   "engines": {

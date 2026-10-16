@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {buildDryRunCallPlan, CALL_JOB_LEASE_MS} from "../app/lib/calling-worker.server.ts";
+import {buildDryRunCallPlan, claimNextCallJob, releaseExpiredCallJobLeases, CALL_JOB_LEASE_MS} from "../app/lib/calling-worker.server.ts";
+
+test("Shopify call worker remains dormant while standalone IVR is developed", async () => {
+  assert.equal(await claimNextCallJob(), null);
+  assert.equal(await releaseExpiredCallJobLeases(), 0);
+});
 
 test("dry-run call plan contains personalized order and address segments", () => {
   const plan = buildDryRunCallPlan(

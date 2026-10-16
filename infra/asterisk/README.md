@@ -60,6 +60,29 @@ not prove Urdu recordings, dynamic address audio, SIP trunk quality, outbound
 caller ID, or app-to-PBX event reconciliation. Those require the later steps in
 the plan and real test calls to approved numbers.
 
+## Full standalone test context (after the smoke check)
+
+Append `talwar-ivr-test.extensions.conf` to `extensions_custom.conf` and run
+`fwconsole reload`. Verify `asterisk -rx 'dialplan show talwar-ivr-test'` shows
+the complete context. Place the seven fixed Urdu WAV files under
+`/var/lib/asterisk/sounds/talwar/` with the exact names in
+`audio/ivr/README.md`. The standalone service generates customer-specific
+audio into the private directory named by `IVR_SOUND_DIR`; run it as a user
+that can create files there and that Asterisk can read.
+
+Create an AMI account limited to the local host and to the permissions needed
+for Originate and `UserEvent` delivery. Keep its secret in the host's
+environment or secret store, never in this repository. Configure an outbound
+test trunk with a provider-approved caller ID, and add **only your test phone
+numbers** to `IVR_TEST_NUMBERS`. The service refuses live test mode without
+`IVR_LIVE_TEST_CALLS=yes` and the other required settings in
+`ivr-standalone/README.md`.
+
+Run one test each for both confirmations, cancellation, wrong address, busy,
+no answer, dropped call at each question, duplicate event, and an interrupted
+AMI connection. Inspect the SQLite attempt record and the provider call-detail
+record after each test. Never use a Shopify customer number for these tests.
+
 ## Exit gate
 
 Step 7 is complete only when the test host is installed, its admin access is

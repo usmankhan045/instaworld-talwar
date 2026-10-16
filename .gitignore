@@ -12,6 +12,9 @@ node_modules
 /prisma/dev.sqlite
 /prisma/dev.sqlite-journal
 database.sqlite
+/var/
+*.onnx
+*.onnx.json
 
 .env
 .env.*
