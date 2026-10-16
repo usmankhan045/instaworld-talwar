@@ -1,6 +1,6 @@
 # Talwar Store Automated Order-Confirmation IVR Plan
 
-Status: Standalone implementation in progress — Shopify order integration is paused.
+Status: Local-first standalone testing — Shopify order integration is paused.
 
 Owner: Talwar Store
 
@@ -36,6 +36,23 @@ simulated path is automated-test verified. The physical PBX path is **not**
 verified yet: it still requires a VPS, recorded fixed prompts, an Urdu voice
 model, a test SIP trunk, a verified caller ID, and live DTMF/quality tests.
 There is no customer-order or TCS integration in the standalone service.
+
+## Local-first acceptance gate before cloud setup
+
+The next work stays on the developer computer. Run `npm run ivr:rehearse` and
+the automated test suite with fictional data. Inspect each scenario's spoken
+text and terminal state. Generate and listen to real greeting/address WAVs
+with an Urdu model, and record and review the seven fixed prompts. Check
+pronunciation of Pakistani names, Hamtaa products, numbers, and long addresses.
+Only after the human audio review and local state-machine tests pass should a
+cloud PBX be provisioned. Keep the standalone queue isolated throughout;
+moving it to cloud must not subscribe to Shopify orders or book TCS shipments.
+Local simulation cannot establish SIP audio quality, DTMF delivery, caller ID,
+or mobile-network reliability; those remain explicit cloud/live-test gates.
+The first real Piper preview on the local Mac generated fictional greeting and
+address WAVs in 8 kHz mono PCM. File format and generation passed; Urdu
+intelligibility and pronunciation still require the merchant to listen, and
+the seven fixed prompts have not yet been recorded.
 
 Connecting it later requires a separate explicit change and acceptance run:
 restore the `orders/create` subscription, map Shopify orders into the
@@ -576,9 +593,10 @@ The feature is ready only when:
 ## 17. Immediate next implementation order
 
 Progress as of 2026-10-16: earlier app-side prototypes for steps 1–6 exist,
-but Shopify order ingestion has been disabled. A standalone test system is now
-the active workstream. Phase 1 host preparation is in `infra/asterisk/`. A test
-VPS, fixed recordings, and SIP trunk are still needed for live Asterisk checks.
+but Shopify order ingestion has been disabled. Local standalone rehearsal is
+the active workstream. Cloud host preparation in `infra/asterisk/` is deferred
+until the local flow and audio are accepted. A test host, fixed recordings,
+and SIP trunk will still be needed for live Asterisk checks.
 
 1. Add `CallJob` and `CallAttempt` Prisma models.
 2. Add the migration and test fixtures.

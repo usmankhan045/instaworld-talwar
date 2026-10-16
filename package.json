@@ -20,7 +20,9 @@
     "vite": "vite",
     "typecheck": "react-router typegen && tsc --noEmit",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
-    "ivr:standalone": "node --experimental-strip-types ivr-standalone/server.ts"
+    "ivr:standalone": "node --experimental-strip-types ivr-standalone/server.ts",
+    "ivr:rehearse": "node --experimental-strip-types ivr-standalone/rehearse.ts",
+    "ivr:preview-audio": "node --experimental-strip-types ivr-standalone/preview-audio.ts"
   },
   "type": "module",
   "engines": {

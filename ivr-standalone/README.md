@@ -6,6 +6,30 @@ create through its loopback API for numbers in `IVR_TEST_NUMBERS`. The old
 Shopify `orders/create` handler is inert, and the old app DB queue worker is
 disabled. No confirmation from this service can book or cancel an order.
 
+## First: rehearse locally without a server or calls
+
+Run `npm run ivr:rehearse`. It uses fictional customer details and an in-memory
+database to print the exact intended greeting, address and fixed Urdu prompts.
+It exercises confirmation, cancellation, incorrect address, missed-call retry,
+dropped-call retry and invalid keypad input. No environment variables, SIP
+account, VPS, network call, Shopify order or persistent test job are needed.
+The output is a **text rehearsal**, not evidence that spoken Urdu sounds good
+or that a telephone keypad works. A human must review the scripts and later
+listen to real rendered audio before any customer calling is enabled.
+
+For a real offline speech preview, install Piper outside the repository and
+download an Urdu voice model with its matching `.onnx.json` file. Then run
+`PIPER_MODEL=/absolute/path/to/voice.onnx npm run ivr:preview-audio` with
+`piper` and `ffmpeg` on your `PATH`. This renders fictional name/product and
+address samples into ignored `var/ivr-preview/` as private mono 8 kHz WAVs.
+Listen to both files and judge names, English product words, digits, and
+address pronunciation. This command does not render the seven fixed prompts;
+those still need recording and human review.
+
+On a Mac with `uv`, Piper can run in an isolated temporary environment with
+`uv run --no-project --with piper-tts npm run ivr:preview-audio` (set
+`PIPER_MODEL` as above). This does not install Piper into the app dependencies.
+
 ## Run the simulator
 
 Use Node 22.12 or newer. Set a private token of at least 24 characters and a
