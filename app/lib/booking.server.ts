@@ -172,13 +172,32 @@ export async function bookCombinedOrders(
   };
   const existingLinks = await prisma.shipmentOrder.findMany({
     where: {shop, shopifyOrderId: {in: combined.orderIds}},
-    select: {shopifyOrderNumber: true, shipment: {select: {refNo: true}}},
+    select: {
+      shopifyOrderId: true,
+      shopifyOrderNumber: true,
+      shipment: {select: {refNo: true, status: true, instaworldStatus: true}},
+    },
   });
+  const cancelledLinkedOrderIds = new Set<string>();
   for (const link of existingLinks) {
     const remote = await findShipmentByReference(link.shipment.refNo, shop);
     if (remote && !isCancelledShipment(remote)) {
       throw new Error(`Order #${link.shopifyOrderNumber} is already booked in InstaWorld.`);
     }
+    const localStatus = `${link.shipment.status} ${link.shipment.instaworldStatus || ""}`.toUpperCase();
+    if (!remote || isCancelledShipment(remote) || localStatus.includes("CANCEL")) {
+      cancelledLinkedOrderIds.add(link.shopifyOrderId);
+    }
+  }
+  if (cancelledLinkedOrderIds.size > 0) {
+    await prisma.orderReservation.updateMany({
+      where: {
+        shop,
+        shopifyOrderId: {in: [...cancelledLinkedOrderIds]},
+        state: "active",
+      },
+      data: {state: "released", releasedAt: new Date()},
+    });
   }
   // A canceled InstaWorld shipment can leave its local reservation active
   // until the normal lease expires. Release that reservation before checking
