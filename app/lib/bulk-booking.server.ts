@@ -60,6 +60,7 @@ export type BulkBookingGroup = {
   amount: number;
   paymentType: "cod" | "paid";
   items: BulkBookingItem[];
+  accountId?: string;
 };
 
 export type BulkValidation = {
@@ -194,12 +195,14 @@ function requestFor(group: BulkBookingGroup, locationId: number): InstaWorldRequ
   };
 }
 
-async function bookOneBulkGroup(shop: string, group: BulkBookingGroup, locationId: number): Promise<BulkBookingResult> {
+async function bookOneBulkGroup(shop: string, group: BulkBookingGroup): Promise<BulkBookingResult> {
   let stage = "checking for an existing InstaWorld booking";
   try {
+    const {resolveInstaWorldConfig} = await import("./instaworld-accounts.server");
+    const config = await resolveInstaWorldConfig(shop, group.accountId);
     // InstaWorld is the source of truth. A cancelled remote shipment may be
     // booked again; an active remote shipment is skipped as a duplicate.
-    const remote = await findShipmentByReference(group.reference, shop);
+    const remote = await findShipmentByReference(group.reference, shop, config);
     if (remote && !isCancelledShipment(remote)) {
       return {reference: group.reference, status: "skipped", trackingNumber: remote.trackingNumber, message: "Already booked in InstaWorld."};
     }
@@ -209,7 +212,7 @@ async function bookOneBulkGroup(shop: string, group: BulkBookingGroup, locationI
     });
     const bookingReference = group.reference;
     stage = "creating the shipment request";
-    const requestPayload = requestFor({...group, reference: bookingReference}, locationId);
+    const requestPayload = requestFor({...group, reference: bookingReference}, config.locationId!);
     const idempotencyKey = randomUUID();
     const shipment = local
       ? await prisma.shipment.update({
@@ -225,9 +228,10 @@ async function bookOneBulkGroup(shop: string, group: BulkBookingGroup, locationI
             paymentType: group.paymentType,
             amountDue: group.amount,
             currencyCode: "PKR",
+            instaworldAccountId: config.id,
           },
         })
-      : await prisma.shipment.create({data: {shop, refNo: bookingReference, status: "submitting", declaredWeight: FIXED_SHIPMENT_WEIGHT_KG, paymentType: group.paymentType, amountDue: group.amount, currencyCode: "PKR"}});
+      : await prisma.shipment.create({data: {shop, refNo: bookingReference, status: "submitting", declaredWeight: FIXED_SHIPMENT_WEIGHT_KG, paymentType: group.paymentType, amountDue: group.amount, currencyCode: "PKR", instaworldAccountId: config.id}});
     const previousAttempt = local?.attempts[0];
     const attempt = previousAttempt
       ? await prisma.bookingAttempt.update({
@@ -247,7 +251,7 @@ async function bookOneBulkGroup(shop: string, group: BulkBookingGroup, locationI
       : await prisma.bookingAttempt.create({data: {shop, shipmentId: shipment.id, idempotencyKey, status: "submitting", requestFingerprint: JSON.stringify({source: "whatsapp-csv", reference: group.reference}), requestPayload: JSON.stringify(requestPayload)}});
     try {
       stage = "booking the shipment with InstaWorld";
-      const result = await createShipment(requestPayload, idempotencyKey, shop);
+      const result = await createShipment(requestPayload, idempotencyKey, shop, config);
       await prisma.$transaction([
         prisma.shipment.update({where: {id: shipment.id}, data: {status: "booked", trackingNumber: result.trackingNumber, bookedAt: new Date()}}),
         prisma.bookingAttempt.update({where: {id: attempt.id}, data: {status: "succeeded", completedAt: new Date()}}),
@@ -266,12 +270,12 @@ async function bookOneBulkGroup(shop: string, group: BulkBookingGroup, locationI
   }
 }
 
-export async function bookBulkGroups(shop: string, groups: BulkBookingGroup[], locationId: number): Promise<BulkBookingResult[]> {
+export async function bookBulkGroups(shop: string, groups: BulkBookingGroup[]): Promise<BulkBookingResult[]> {
   const results: BulkBookingResult[] = [];
   const batchSize = 5;
   for (let index = 0; index < groups.length; index += batchSize) {
     const batch = groups.slice(index, index + batchSize);
-    results.push(...await Promise.all(batch.map((group) => bookOneBulkGroup(shop, group, locationId))));
+    results.push(...await Promise.all(batch.map((group) => bookOneBulkGroup(shop, group))));
   }
   return results;
 }

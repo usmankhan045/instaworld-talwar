@@ -89,6 +89,8 @@ function Extension() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [cityWarning, setCityWarning] = useState("");
+  const [accounts, setAccounts] = useState([]);
+  const [accountId, setAccountId] = useState("");
 
   useEffect(() => {
     if (!currentOrderId) {
@@ -107,7 +109,7 @@ function Extension() {
       const response = await fetch(`${APP_URL}/api/instaworld-orders`, {
         method: "POST",
         headers: {"Content-Type": "application/json", ...authHeaders},
-        body: JSON.stringify({orderIds}),
+        body: JSON.stringify({orderIds, accountId: accountId || undefined}),
       });
       const payload = await readApiResponse(response, "The selected orders cannot be combined.");
       if (payload.orders) {
@@ -121,6 +123,8 @@ function Extension() {
       setCombined(payload.combined);
       setVerifiedAddress(payload.verifiedAddress || null);
       setRelatedOrders(payload.relatedOrders || []);
+      setAccounts(payload.accounts || []);
+      if (!accountId && payload.accounts?.length) setAccountId(payload.accounts.find((account) => account.isDefault)?.id || payload.accounts[0].id);
       // Weight is always fixed at 0.8 kg
       setCityWarning(payload.cityWarning || "");
     } catch (previewError) {
@@ -191,7 +195,7 @@ function Extension() {
         method: "POST",
         headers: {"Content-Type": "application/json", ...authHeaders},
         // Weight is always fixed at 0.8 kg
-        body: JSON.stringify({orderIds: selectedOrderIds, declaredWeight: 0.8}),
+        body: JSON.stringify({orderIds: selectedOrderIds, declaredWeight: 0.8, accountId: accountId || undefined}),
       });
       const payload = await readApiResponse(response, "Booking failed.");
       if (!payload.success) {
@@ -224,6 +228,12 @@ function Extension() {
         <s-text>
           Select one or more compatible orders. No shipment is created until you confirm.
         </s-text>
+
+        {accounts.length > 1 && (
+          <s-select label="Book with InstaWorld account" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
+            {accounts.map((account) => <s-option key={account.id} value={account.id}>{account.name} · {account.mode}</s-option>)}
+          </s-select>
+        )}
 
         <s-stack direction="inline" gap="base">
           <input

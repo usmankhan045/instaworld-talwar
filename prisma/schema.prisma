@@ -54,26 +54,104 @@ model OrderBooking {
 }
 
 model Shipment {
-  id                   String           @id @default(cuid())
-  shop                 String
-  refNo                String
-  trackingNumber       String?
-  status               String           @default("pending")
-  declaredWeight       Float?
-  paymentType          String?
-  amountDue            Float?
-  currencyCode         String?
-  bookedAt             DateTime?
-  instaworldStatus     String? // Last known InstaWorld PublicStatusCode
-  shopifyFulfillmentId String? // Shopify fulfillment GID
-  lastSyncedAt         DateTime? // When this shipment was last synced
-  createdAt            DateTime         @default(now())
-  updatedAt            DateTime         @updatedAt
-  orders               ShipmentOrder[]
-  attempts             BookingAttempt[]
+  id                    String                 @id @default(cuid())
+  shop                  String
+  refNo                 String
+  trackingNumber        String?
+  status                String                 @default("pending")
+  declaredWeight        Float?
+  paymentType           String?
+  amountDue             Float?
+  currencyCode          String?
+  bookedAt              DateTime?
+  instaworldStatus      String? // Last known InstaWorld PublicStatusCode
+  shopifyFulfillmentId  String? // Shopify fulfillment GID
+  lastSyncedAt          DateTime? // When this shipment was last synced
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  instaworldAccountId   String?
+  orders                ShipmentOrder[]
+  attempts              BookingAttempt[]
+  whatsappNotifications WhatsAppNotification[]
 
   @@unique([shop, refNo], name: "shipment_shop_refNo_key")
   @@index([shop, trackingNumber])
+}
+
+model WhatsAppAccount {
+  id                String                 @id @default(cuid())
+  shop              String
+  accountKey        String
+  phoneNumberId     String
+  businessAccountId String?
+  enabled           Boolean                @default(false)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  notifications     WhatsAppNotification[]
+
+  @@unique([shop, accountKey], name: "whatsappAccount_shop_accountKey_key")
+  @@unique([shop, phoneNumberId], name: "whatsappAccount_shop_phoneNumberId_key")
+  @@index([shop, enabled])
+}
+
+model WhatsAppTemplate {
+  id           String   @id @default(cuid())
+  shop         String
+  accountKey   String
+  eventType    String
+  templateName String
+  languageCode String   @default("en_US")
+  enabled      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([shop, accountKey, eventType], name: "whatsappTemplate_shop_account_event_key")
+  @@index([shop, enabled])
+}
+
+model WhatsAppNotification {
+  id                String          @id @default(cuid())
+  shop              String
+  accountKey        String
+  eventType         String
+  idempotencyKey    String
+  shipmentId        String?
+  shopifyOrderId    String?
+  recipientPhone    String
+  templateName      String
+  languageCode      String          @default("en_US")
+  parametersJson    String
+  documentUrl       String?
+  status            String          @default("pending")
+  attempts          Int             @default(0)
+  nextAttemptAt     DateTime?
+  leaseUntil        DateTime?
+  providerMessageId String?
+  lastError         String?
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  readAt            DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  account           WhatsAppAccount @relation(fields: [shop, accountKey], references: [shop, accountKey], onDelete: Restrict)
+  shipment          Shipment?       @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+
+  @@unique([shop, idempotencyKey], name: "whatsappNotification_shop_idempotencyKey_key")
+  @@index([shop, status, nextAttemptAt, leaseUntil])
+  @@index([shop, shipmentId])
+  @@index([shop, providerMessageId])
+}
+
+model WhatsAppWebhookEvent {
+  id                String    @id @default(cuid())
+  providerMessageId String?
+  eventType         String
+  payloadJson       String
+  receivedAt        DateTime  @default(now())
+  processedAt       DateTime?
+
+  @@unique([providerMessageId, eventType], name: "whatsappWebhook_providerMessage_event_key")
+  @@index([receivedAt])
 }
 
 model SyncState {
@@ -164,6 +242,22 @@ model CallJob {
   @@unique([shop, shopifyOrderId], name: "callJob_shop_shopifyOrderId_key")
   @@index([shop, callStatus, nextAttemptAt])
   @@index([shop, phone])
+}
+
+model InstaWorldAccount {
+  id         String   @id @default(cuid())
+  shop       String
+  name       String
+  apiKeyEncrypted String
+  baseUrl    String   @default("https://api.instaworld.pk/v2")
+  locationId Int
+  mode       String   @default("live")
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([shop, name], name: "instaworldAccount_shop_name_key")
+  @@index([shop, isDefault])
 }
 
 model CallAttempt {

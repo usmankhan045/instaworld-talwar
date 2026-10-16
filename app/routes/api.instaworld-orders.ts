@@ -17,6 +17,7 @@ import {
 } from "../lib/instaworld.server";
 import { verifyDeliveryAddress } from "../lib/address-validation.server";
 import { authenticate } from "../shopify.server";
+import {listInstaWorldAccounts, resolveInstaWorldConfig} from "../lib/instaworld-accounts.server";
 
 function json(data: unknown, init?: ResponseInit) {
   return new Response(JSON.stringify(data), {
@@ -62,15 +63,16 @@ function hasReliableCustomerMatch(current: ShopifyOrder, candidate: ShopifyOrder
   return sameEmail || samePhone || sameName || sameAddress;
 }
 
-async function checkCityServiceable(rawCity: string, shop: string): Promise<string | null> {
+async function checkCityServiceable(rawCity: string, shop: string, accountId?: string): Promise<string | null> {
   if (!rawCity) return null;
   const city = normaliseCity(rawCity);
   if (!city) return null;
 
   try {
     const now = Date.now();
-    const config = requireInstaWorldConfig(shop);
-    const cached = cityCache.get(config.account);
+    const config = await resolveInstaWorldConfig(shop, accountId);
+    const cacheKey = config.id || config.account;
+    const cached = cityCache.get(cacheKey);
     if (!cached || now > cached.expiresAt) {
       const res = await fetch(`${config.baseUrl}/cities`, {
         headers: {Authorization: `Bearer ${config.apiKey}`, Accept: "application/json"},
@@ -82,12 +84,12 @@ async function checkCityServiceable(rawCity: string, shop: string): Promise<stri
         ? payload.data.map((c: {name?: string}) => String(c.name ?? "").toUpperCase()).filter(Boolean)
         : [];
       if (list.length > 0) {
-        cityCache.set(config.account, {cities: list, expiresAt: now + 60 * 60 * 1000});
+        cityCache.set(cacheKey, {cities: list, expiresAt: now + 60 * 60 * 1000});
       } else {
         return null;
       }
     }
-    const serviceable = cityCache.get(config.account)?.cities.includes(city);
+    const serviceable = cityCache.get(cacheKey)?.cities.includes(city);
     if (serviceable === false) {
       return `InstaWorld does not currently service ${city}. This order cannot be booked for delivery to this city.`;
     }
@@ -236,13 +238,14 @@ export async function action({ request }: ActionFunctionArgs) {
 
     // Check if InstaWorld services the destination city — non-blocking warning
     stage = "InstaWorld city serviceability check";
-    const cityWarning = await checkCityServiceable(combined.consignee.city ?? "", session.shop);
+    const cityWarning = await checkCityServiceable(combined.consignee.city ?? "", session.shop, typeof body?.accountId === "string" ? body.accountId : undefined);
 
     return json({
       combined,
       relatedOrders,
       cityWarning,
       verifiedAddress: addressVerification.verifiedAddress,
+      accounts: await listInstaWorldAccounts(session.shop),
     });
   } catch (error) {
     // Preserve Shopify authentication redirects and thrown responses.

@@ -552,8 +552,9 @@ function extractErrorMessage(payload: any, status: number): string {
 export async function findShipmentByReference(
   refNo: string,
   shop?: string,
+  selectedConfig?: InstaWorldConfig,
 ): Promise<InstaWorldShipment | null> {
-  const config = requireInstaWorldConfig(shop);
+  const config = selectedConfig ?? requireInstaWorldConfig(shop);
   validateReference(refNo);
   const response = await request(`/shipments?ref_no=${encodeURIComponent(refNo)}`, config);
   const payload = await response.json().catch(() => ({}));
@@ -575,8 +576,9 @@ export async function createShipment(
   requestPayload: InstaWorldRequest,
   idempotencyKey: string,
   shop?: string,
+  selectedConfig?: InstaWorldConfig,
 ): Promise<InstaWorldShipment> {
-  const config = requireInstaWorldConfig(shop);
+  const config = selectedConfig ?? requireInstaWorldConfig(shop);
   validateReference(requestPayload.refNo);
   const body: Record<string, unknown> = {
     location_id: requestPayload.locationId,

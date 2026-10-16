@@ -29,6 +29,7 @@ import {
   instaworldStatusToShopify,
 } from "../lib/shopify-fulfillment.server";
 import {requireInstaWorldConfig} from "../lib/instaworld.server";
+import {listInstaWorldAccounts, resolveInstaWorldConfig} from "../lib/instaworld-accounts.server";
 
 function jsonResp(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -63,10 +64,13 @@ type InstaWorldShipmentsResponse = {
   meta?: {next_cursor?: string | null};
 };
 
-async function fetchInstaWorldShipments(shop: string, updatedSince: Date): Promise<InstaWorldShipment[]> {
-  const config = requireInstaWorldConfig(shop);
-
-  const allShipments: InstaWorldShipment[] = [];
+async function fetchInstaWorldShipments(shop: string, updatedSince: Date): Promise<Array<InstaWorldShipment & {accountId?: string}>> {
+  const storedAccounts = await listInstaWorldAccounts(shop);
+  const configs: Array<Awaited<ReturnType<typeof resolveInstaWorldConfig>>> = storedAccounts.length
+    ? await Promise.all(storedAccounts.map((account) => resolveInstaWorldConfig(shop, account.id)))
+    : [requireInstaWorldConfig(shop)];
+  const allShipments: Array<InstaWorldShipment & {accountId?: string}> = [];
+  for (const config of configs) {
   let cursor: string | null = null;
 
   do {
@@ -88,9 +92,10 @@ async function fetchInstaWorldShipments(shop: string, updatedSince: Date): Promi
 
     const payload = (await res.json()) as InstaWorldShipmentsResponse;
     const data = Array.isArray(payload.data) ? payload.data : [];
-    allShipments.push(...data);
+    allShipments.push(...data.map((shipment) => ({...shipment, accountId: config.id})));
     cursor = payload?.meta?.next_cursor ?? null;
   } while (cursor);
+  }
 
   return allShipments;
 }
@@ -149,7 +154,7 @@ export async function loader({request}: LoaderFunctionArgs) {
 
           // Find our shipment record by tracking number
           const dbShipment = await prisma.shipment.findFirst({
-            where: {shop, trackingNumber},
+            where: {shop, trackingNumber, ...(iwShipment.accountId ? {instaworldAccountId: iwShipment.accountId} : {})},
             include: {orders: true},
           });
 

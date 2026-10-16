@@ -1,14 +1,14 @@
 import {useState} from "react";
 import type {ActionFunctionArgs, LoaderFunctionArgs} from "react-router";
-import {useFetcher} from "react-router";
+import {useFetcher, useLoaderData} from "react-router";
 
 import {authenticate} from "../shopify.server";
 import {bookBulkGroups, validateBulkCsv, type BulkBookingResult, type BulkBookingGroup} from "../lib/bulk-booking.server";
-import {requireInstaWorldConfig} from "../lib/instaworld.server";
+import prisma from "../db.server";
 
 export async function loader({request}: LoaderFunctionArgs) {
-  await authenticate.admin(request);
-  return null;
+  const {session} = await authenticate.admin(request);
+  return {accounts: await prisma.instaWorldAccount.findMany({where: {shop: session.shop}, select: {id: true, name: true, mode: true, isDefault: true}, orderBy: [{isDefault: "desc"}, {createdAt: "asc"}]})};
 }
 
 export async function action({request}: ActionFunctionArgs) {
@@ -22,8 +22,9 @@ export async function action({request}: ActionFunctionArgs) {
     if (validation.errors.length > 0 || intent !== "book") {
       return Response.json({ok: validation.errors.length === 0, ...validation, csvText: validation.errors.length === 0 ? csvText : undefined});
     }
-    const config = requireInstaWorldConfig(session.shop);
-    const results = await bookBulkGroups(session.shop, validation.groups, config.locationId!);
+    const assignments = JSON.parse(String(form.get("accountAssignments") || "{}")) as Record<string, string>;
+    const groups = validation.groups.map((group) => ({...group, accountId: assignments[group.reference] || undefined}));
+    const results = await bookBulkGroups(session.shop, groups);
     return Response.json({ok: true, ...validation, results});
   } catch (error) {
     return Response.json({ok: false, errors: [error instanceof Error ? error.message : "Bulk booking failed."]}, {status: 400});
@@ -40,21 +41,24 @@ type BulkPageData = {
 };
 
 export default function BulkBooking() {
+  const {accounts} = useLoaderData<typeof loader>();
   const fetcher = useFetcher<BulkPageData>();
   const [csvText, setCsvText] = useState("");
   const [fileName, setFileName] = useState("");
   const data = fetcher.data;
   const busy = fetcher.state !== "idle";
   const previewed = Boolean(data?.ok && data.csvText);
-  const submitCsv = (intent: "preview" | "book") => fetcher.submit({intent, csvText}, {method: "post"});
+  const [accountAssignments, setAccountAssignments] = useState<Record<string, string>>({});
+  const showAccountRouting = accounts.length > 1;
+  const submitCsv = (intent: "preview" | "book") => fetcher.submit({intent, csvText, accountAssignments: JSON.stringify(accountAssignments)}, {method: "post"});
 
   return (
-    <s-page heading="WhatsApp bulk booking">
+    <s-page heading="Bulk shipment booking">
       <s-button slot="primary-action" href="/templates/whatsapp-booking-template.csv" download="whatsapp-booking-template.csv" variant="secondary">
         Download CSV template
       </s-button>
-      <s-section heading="1. Upload order CSV">
-        <s-paragraph>Use one row per product. Repeat the same reference for multiple products in one shipment.</s-paragraph>
+      <s-section heading="Upload your shipment file">
+        <s-paragraph>Use one row per product. Repeat the same reference for multiple products in one shipment. We’ll group matching references into a single 0.8 kg shipment.</s-paragraph>
         <input
           type="file"
           accept=".csv,text/csv"
@@ -67,7 +71,7 @@ export default function BulkBooking() {
         />
         {fileName && <s-paragraph>Selected: {fileName}</s-paragraph>}
         <s-button variant="primary" disabled={!csvText || busy} loading={busy} onClick={() => submitCsv("preview")}>
-          Validate and preview
+          Review shipments
         </s-button>
       </s-section>
       {data?.errors?.length ? (
@@ -76,11 +80,11 @@ export default function BulkBooking() {
         </s-section>
       ) : null}
       {data?.ok && data.groups ? (
-        <s-section heading="2. Review and book">
-          <s-paragraph>{data.groups.length} shipments from {data.rowCount} product rows. Every shipment will be booked at 0.8 kg total.</s-paragraph>
+        <s-section heading="Review before booking">
+          <s-banner heading={`${data.groups.length} shipments ready`} tone="info">{data.rowCount} product rows were grouped successfully. Check the destination and courier account before booking.</s-banner>
           <s-table>
-            <s-table-header-row><s-table-header>Reference</s-table-header><s-table-header>Customer</s-table-header><s-table-header>City</s-table-header><s-table-header>Products</s-table-header><s-table-header>Amount</s-table-header></s-table-header-row>
-            <s-table-body>{data.groups.map((group) => <s-table-row key={group.reference}><s-table-cell>{group.reference}</s-table-cell><s-table-cell>{group.firstName} {group.lastName}</s-table-cell><s-table-cell>{group.city}</s-table-cell><s-table-cell>{group.items.map((item) => `${item.title}${item.color ? ` (${item.color})` : ""}`).join("; ")}</s-table-cell><s-table-cell>{group.amount}</s-table-cell></s-table-row>)}</s-table-body>
+            <s-table-header-row><s-table-header>Reference</s-table-header><s-table-header>Customer</s-table-header><s-table-header>City</s-table-header><s-table-header>Products</s-table-header><s-table-header>Amount</s-table-header>{showAccountRouting && <s-table-header>Book with</s-table-header>}</s-table-header-row>
+            <s-table-body>{data.groups.map((group) => <s-table-row key={group.reference}><s-table-cell>{group.reference}</s-table-cell><s-table-cell>{group.firstName} {group.lastName}</s-table-cell><s-table-cell>{group.city}</s-table-cell><s-table-cell>{group.items.map((item) => `${item.title}${item.color ? ` (${item.color})` : ""}`).join("; ")}</s-table-cell><s-table-cell>{group.amount}</s-table-cell>{showAccountRouting && <s-table-cell><s-select label="Account" labelAccessibilityVisibility="exclusive" value={accountAssignments[group.reference] || accounts.find((account) => account.isDefault)?.id || accounts[0]?.id || ""} onChange={(event) => setAccountAssignments((current) => ({...current, [group.reference]: (event.target as HTMLSelectElement).value}))}>{accounts.map((account) => <s-option key={account.id} value={account.id}>{account.name} · {account.mode}</s-option>)}</s-select></s-table-cell>}</s-table-row>)}</s-table-body>
           </s-table>
           {!data.results && <s-button variant="primary" tone="critical" disabled={busy} loading={busy} onClick={() => submitCsv("book")}>Book all shipments</s-button>}
         </s-section>
@@ -97,7 +101,7 @@ export default function BulkBooking() {
           <s-table><s-table-header-row><s-table-header>Reference</s-table-header><s-table-header>Status</s-table-header><s-table-header>Tracking / message</s-table-header></s-table-header-row><s-table-body>{data.results.map((result) => <s-table-row key={result.reference}><s-table-cell>{result.reference}</s-table-cell><s-table-cell>{result.status}</s-table-cell><s-table-cell>{result.status === "failed" ? result.error : result.trackingNumber || result.message || ""}</s-table-cell></s-table-row>)}</s-table-body></s-table>
         </s-section>
       ) : null}
-      <s-section heading="CSV columns">
+      <s-section heading="File format">
         <s-paragraph>Required: reference, first_name, phone, address, city, amount, product_title, quantity. Optional: last_name, email, province, postal_code, country, sku, color, payment_type.</s-paragraph>
       </s-section>
     </s-page>

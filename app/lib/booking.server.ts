@@ -20,6 +20,7 @@ import {
 import {createShopifyFulfillment} from "./shopify-fulfillment.server";
 import type {ShopifyOrder} from "./shopify-orders.server";
 import {verifyDeliveryAddress} from "./address-validation.server";
+import {resolveInstaWorldConfig} from "./instaworld-accounts.server";
 
 const RESERVATION_LEASE_MS = 5 * 60 * 1000;
 function fingerprint(orders: ShopifyOrder[], declaredWeight: number) {
@@ -49,7 +50,7 @@ function splitName(full: string): {first_name: string; last_name?: string} {
   return {first_name, last_name};
 }
 
-async function releaseReservationsForCancelledShipments(shop: string, orderIds: string[]) {
+async function releaseReservationsForCancelledShipments(shop: string, orderIds: string[], selectedConfig?: Parameters<typeof findShipmentByReference>[2]) {
   const activeReservations = await prisma.orderReservation.findMany({
     where: {
       shop,
@@ -78,7 +79,7 @@ async function releaseReservationsForCancelledShipments(shop: string, orderIds: 
       continue;
     }
 
-    const remote = await findShipmentByReference(attempt.shipment.refNo, shop);
+    const remote = await findShipmentByReference(attempt.shipment.refNo, shop, selectedConfig);
     if (remote && isCancelledShipment(remote)) cancelledAttemptIds.add(attempt.id);
   }
 
@@ -149,8 +150,9 @@ export async function bookCombinedOrders(
   orders: ShopifyOrder[],
   _declaredWeight: number,
   admin?: unknown,
+  accountId?: string,
 ) {
-  const config = requireInstaWorldConfig(shop);
+  const config = await resolveInstaWorldConfig(shop, accountId);
   // The courier weighs the parcel at the office. Always book one fixed
   // shipment weight regardless of line count or product quantity.
   const declaredWeight = FIXED_SHIPMENT_WEIGHT_KG;
@@ -180,7 +182,7 @@ export async function bookCombinedOrders(
   });
   const cancelledLinkedOrderIds = new Set<string>();
   for (const link of existingLinks) {
-    const remote = await findShipmentByReference(link.shipment.refNo, shop);
+    const remote = await findShipmentByReference(link.shipment.refNo, shop, config);
     if (remote && !isCancelledShipment(remote)) {
       throw new Error(`Order #${link.shopifyOrderNumber} is already booked in InstaWorld.`);
     }
@@ -206,7 +208,7 @@ export async function bookCombinedOrders(
   // A canceled InstaWorld shipment can leave its local reservation active
   // until the normal lease expires. Release that reservation before checking
   // for concurrent attempts so the order can be booked again immediately.
-  await releaseReservationsForCancelledShipments(shop, combined.orderIds);
+  await releaseReservationsForCancelledShipments(shop, combined.orderIds, config);
   const attemptId = randomUUID();
   const idempotencyKey = randomUUID();
   // Use Shopify order number(s) as the human-readable refNo (e.g. "1006" or "1006+1007")
@@ -263,6 +265,7 @@ export async function bookCombinedOrders(
             paymentType: combined.payment.treatment,
             amountDue: combined.payment.amountDue,
             currencyCode: combined.payment.currencyCode,
+            instaworldAccountId: config.id,
           },
         })
       : await tx.shipment.create({
@@ -274,6 +277,7 @@ export async function bookCombinedOrders(
             paymentType: combined.payment.treatment,
             amountDue: combined.payment.amountDue,
             currencyCode: combined.payment.currencyCode,
+            instaworldAccountId: config.id,
           },
         });
     const previousAttempt = previousShipment?.attempts[0];
@@ -337,7 +341,7 @@ export async function bookCombinedOrders(
   });
 
   try {
-    const existing = await findShipmentByReference(refNo, shop);
+    const existing = await findShipmentByReference(refNo, shop, config);
     if (existing && !isCancelledShipment(existing)) {
       return await finalizeSuccessfulBooking(shop, attempt.id, existing.trackingNumber, orders, admin);
     }
@@ -351,7 +355,7 @@ export async function bookCombinedOrders(
       data: {status: "submitting"},
     });
 
-    const result = await createShipment(requestPayload, idempotencyKey, shop);
+    const result = await createShipment(requestPayload, idempotencyKey, shop, config);
     return await finalizeSuccessfulBooking(shop, attempt.id, result.trackingNumber, orders, admin);
   } catch (error) {
     const status = typeof error === "object" && error && "status" in error ? Number(error.status) : null;

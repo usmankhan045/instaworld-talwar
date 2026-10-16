@@ -24,6 +24,7 @@ Set these for all environments (Production, Preview, Development):
 |---|---|---|
 | `DATABASE_URL` | Neon → Connection Details → Pooled URL | Used by Prisma for query execution (via connection pooling) |
 | `DIRECT_DATABASE_URL` | Neon → Connection Details → Direct URL | Used by Prisma Migrate; bypasses pooler for DDL |
+| `INSTAWORLD_CREDENTIALS_ENCRYPTION_KEY` | A random 32-byte base64 or 64-character hex key | Encrypts InstaWorld API keys saved from the dashboard; keep stable and private |
 | `SHOPIFY_API_KEY` | Shopify Partners → App → API credentials | **Must not be empty** |
 | `SHOPIFY_API_SECRET` | Shopify Partners → App → API credentials | **Must not be empty** |
 | `SHOPIFY_APP_URL` | `https://app.talwarstore.com` | **Must equal the production Vercel URL exactly** — the Admin UI Extension hardcodes this URL as its fetch base; any mismatch will cause extension API calls to fail |
