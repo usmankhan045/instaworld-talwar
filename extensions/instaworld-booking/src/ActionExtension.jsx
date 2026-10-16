@@ -256,8 +256,8 @@ function Extension() {
 
         {relatedOrders.length > 0 && (
           <>
-            <s-text type="strong">Other orders from this customer</s-text>
-            <s-text>Add another order to include it in this single shipment. Compatibility will be checked before booking.</s-text>
+            <s-text type="strong">Other matching orders</s-text>
+            <s-text>Add another matching order to include it in this single shipment. Compatibility will be checked before booking.</s-text>
             {relatedOrders.map((order) => (
               <s-button key={order.id} onClick={() => addOrder(order)} disabled={selectedOrderIds.includes(order.id)}>
                 Add order #{order.orderNumber}

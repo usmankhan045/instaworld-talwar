@@ -2,6 +2,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 
 import { combineOrders } from "../lib/order-combination.server";
+import type {ShopifyOrder} from "../lib/shopify-orders.server";
 import {
   getShopifyOrders,
   getShopifyOrderNumbers,
@@ -29,6 +30,32 @@ function json(data: unknown, init?: ResponseInit) {
 // City serviceability check (cached for 1 hour, fail-open)
 // ---------------------------------------------------------------------------
 const cityCache = new Map<string, {cities: string[]; expiresAt: number}>();
+
+function normalizedMatchValue(value: string | null | undefined): string {
+  return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function normalizedMatchPhone(value: string | null | undefined): string {
+  return normalizedMatchValue(value).replace(/[^\d+]/g, "");
+}
+
+function hasReliableCustomerMatch(current: ShopifyOrder, candidate: ShopifyOrder): boolean {
+  const currentAddress = current.shippingAddress;
+  const candidateAddress = candidate.shippingAddress;
+  if (!currentAddress || !candidateAddress) return false;
+
+  const sameEmail = Boolean(current.email && candidate.email) &&
+    normalizedMatchValue(current.email) === normalizedMatchValue(candidate.email);
+  const currentPhone = normalizedMatchPhone(currentAddress.phone);
+  const candidatePhone = normalizedMatchPhone(candidateAddress.phone);
+  const samePhone = currentPhone.length >= 7 && currentPhone === candidatePhone;
+  const sameName = Boolean(currentAddress.name && candidateAddress.name) &&
+    normalizedMatchValue(currentAddress.name) === normalizedMatchValue(candidateAddress.name);
+  const sameAddress = ["address1", "address2", "city", "provinceCode", "zip", "countryCode"]
+    .every((field) => normalizedMatchValue(currentAddress[field as keyof typeof currentAddress]) === normalizedMatchValue(candidateAddress[field as keyof typeof candidateAddress]));
+
+  return sameEmail || samePhone || sameName || sameAddress;
+}
 
 async function checkCityServiceable(rawCity: string, shop: string): Promise<string | null> {
   if (!rawCity) return null;
@@ -164,9 +191,10 @@ export async function action({ request }: ActionFunctionArgs) {
         if (candidateIds.length > 0) {
           const candidateOrders = await getShopifyOrders(admin, candidateIds);
           relatedOrders = candidateOrders
+            .filter((candidate) => hasReliableCustomerMatch(orders[0], candidate))
             // Show all other active orders for this customer. The merchant
-            // can add one, then the normal preview explains any address or
-            // payment incompatibility instead of hiding the order.
+            // can add one, then the normal preview explains any payment or
+            // delivery incompatibility instead of hiding a real match.
             .map(({id, orderNumber, createdAt, cancelledAt}) => ({id, orderNumber, createdAt, cancelledAt}));
         }
       } catch (relatedOrderError) {
