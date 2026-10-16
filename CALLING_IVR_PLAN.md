@@ -26,6 +26,10 @@ This is a deterministic IVR, not a conversational AI agent.
 - No shipment is booked when the customer says the address is incorrect.
 - No shipment is booked when the call result is ambiguous or incomplete.
 - A customer must confirm the order and the address separately.
+- A missed call or a call dropped before both confirmations must be retried on
+  the same call job, subject to the attempt limit and calling hours.
+- Partial keypad input from one attempt must never be combined with a later
+  attempt to authorize booking.
 - A Shopify order may have only one active call attempt at a time.
 - A Shopify order may not create duplicate TCS shipments because of repeated webhooks, worker retries, or duplicate keypad events.
 - The exact Shopify order number remains the TCS/booking reference.
@@ -117,6 +121,17 @@ The address audio must use the same corrected city/province normalization alread
 - `2`: set call result to `address_change_required`; do not book.
 - Invalid key/no input: replay once, then hold the order for manual review.
 
+### Interrupted call
+
+If the customer does not answer, or the connection drops before both the order
+and address have been confirmed in the **same attempt**, record that attempt as
+`no_answer` or `dropped` and schedule a new attempt on the existing `CallJob`.
+The new call starts again at the greeting and asks both questions. A previous
+attempt's partial `1` response is audit history only. A dropped call after a
+durably recorded cancellation or incorrect-address response is final for that
+decision and must not trigger a retry. A drop after both confirmations have
+been durably committed must not trigger a second call or booking.
+
 ### Step 5: booking
 
 After the call result is durably saved, the worker invokes the existing TCS booking function using:
@@ -145,6 +160,7 @@ address_change_required
 cancelled
 no_answer
 busy
+dropped
 failed
 invalid_input
 manual_review
@@ -163,6 +179,7 @@ answered
 completed
 no_answer
 busy
+dropped
 failed
 ```
 
@@ -354,12 +371,17 @@ Suggested defaults, configurable later:
 
 - no answer: retry after 30–60 minutes;
 - busy: retry after 15–30 minutes;
+- answered but dropped before both confirmations: retry after 10–15 minutes;
+- a missed call or a mid-call drop creates a new `CallAttempt` under the same
+  `CallJob`; it never creates a second job or shipment;
 - technical failure: retry with exponential backoff;
 - maximum attempts: 3;
 - no calls outside the configured Pakistan business-hours window;
 - after maximum attempts: `manual_review`;
 - if customer cancels: never retry automatically;
 - if customer reports a bad address: do not retry until the address is corrected.
+- if the customer already cancelled or both confirmations were durably saved:
+  do not redial even if the telephone connection then drops.
 
 Retry jobs must use the same Shopify order identity and must not create a second call while an earlier attempt is still active.
 
@@ -483,6 +505,11 @@ Exit condition: provider and IVR meet the agreed quality thresholds for a full r
 - busy/no-answer customer;
 - invalid keypad input;
 - customer hangs up after order confirmation;
+- customer misses the first call and answers the scheduled retry;
+- customer drops before order choice, after order `1`, and during address
+  playback; each case retries and asks both questions again;
+- customer drops just after address `1` is durably saved; no retry or duplicate
+  booking occurs;
 - customer reports incorrect address;
 - multiple products;
 - Urdu name and English product name;
@@ -509,8 +536,10 @@ The feature is ready only when:
 
 ## 17. Immediate next implementation order
 
-Progress as of 2026-10-16: steps 1–6 are implemented. The call-status page is
-read-only and the call worker remains in dry-run mode. Step 7 is next.
+Progress as of 2026-10-16: steps 1–6 are implemented. Phase 1 host preparation
+for step 7 is in `infra/asterisk/`. A test VPS, fixed recordings, and SIP trunk
+are still needed to run the live Asterisk checks. The call worker remains in
+dry-run mode.
 
 1. Add `CallJob` and `CallAttempt` Prisma models.
 2. Add the migration and test fixtures.
