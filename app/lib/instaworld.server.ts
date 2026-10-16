@@ -259,11 +259,28 @@ export function buildInstaWorldAddress(parts: Array<string | null | undefined>):
 export function isCancelledShipment(shipment: InstaWorldShipment | null): boolean {
   if (!shipment || typeof shipment.raw !== "object" || !shipment.raw) return false;
   const raw = shipment.raw as Record<string, unknown>;
-  const status = [raw.status, raw.public_status, raw.publicStatus, raw.shipment_status]
+  const statusObject = raw.status && typeof raw.status === "object"
+    ? raw.status as Record<string, unknown>
+    : null;
+  const status = [
+    raw.status,
+    statusObject?.code,
+    statusObject?.name,
+    statusObject?.label,
+    raw.public_status,
+    raw.publicStatus,
+    raw.shipment_status,
+    raw.shipmentStatus,
+    raw.state,
+    raw.booking_status,
+    raw.bookingStatus,
+  ]
     .filter((value): value is string => typeof value === "string")
     .join(" ")
     .toUpperCase();
-  return status.includes("CANCEL");
+  const cancellationFlag = [raw.is_cancelled, raw.isCancelled, raw.cancelled, raw.canceled]
+    .some((value) => value === true);
+  return cancellationFlag || status.includes("CANCEL");
 }
 
 /** Keep product lines visible while declaring one fixed weight for the parcel. */
@@ -426,9 +443,15 @@ export async function findShipmentByReference(
   if (!response.ok) throw new Error(extractErrorMessage(payload, response.status));
   // Response: { data: [ {...} ], meta: {...} }
   const list = Array.isArray(payload?.data) ? payload.data : [];
-  const candidate = list[0];
-  if (!candidate?.tracking_number) return null;
-  return {trackingNumber: String(candidate.tracking_number), raw: candidate};
+  const candidates: InstaWorldShipment[] = list
+    .filter((candidate: any) => candidate?.tracking_number)
+    .map((candidate: any) => ({trackingNumber: String(candidate.tracking_number), raw: candidate}));
+  // The API can return more than one historical shipment for a reference.
+  // Prefer an active one, but return a canceled one when it is the only match
+  // so callers can safely create a replacement shipment.
+  const candidate = candidates.find((shipment) => !isCancelledShipment(shipment)) || candidates[0];
+  if (!candidate) return null;
+  return candidate;
 }
 
 export async function createShipment(

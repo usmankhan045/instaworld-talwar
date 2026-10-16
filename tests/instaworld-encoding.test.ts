@@ -65,5 +65,7 @@ test("corrects the city spelling inside the complete address", () => {
 test("recognizes canceled InstaWorld shipments so they can be booked again", () => {
   assert.equal(isCancelledShipment({trackingNumber: "123", raw: {status: "cancelled"}}), true);
   assert.equal(isCancelledShipment({trackingNumber: "124", raw: {public_status: "CANCELED BY MERCHANT"}}), true);
+  assert.equal(isCancelledShipment({trackingNumber: "126", raw: {status: {code: "CANCELLED"}}}), true);
+  assert.equal(isCancelledShipment({trackingNumber: "127", raw: {is_cancelled: true}}), true);
   assert.equal(isCancelledShipment({trackingNumber: "125", raw: {status: "BOOKED"}}), false);
 });
