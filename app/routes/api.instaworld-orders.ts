@@ -130,6 +130,13 @@ export async function action({ request }: ActionFunctionArgs) {
     stage = "order combination";
     const combined = combineOrders(orders);
 
+    const postExOrders = orders.filter((order) => order.courier === "POSTEX");
+    const courierWarning = postExOrders.length > 0
+      ? postExOrders
+          .map((order) => `Order #${order.orderNumber}: PostEx booking is temporarily disabled in InstaWorld. Book it separately after the PostEx API is set up.`)
+          .join(" ")
+      : null;
+
     // Check address–city match (fail-open: only block if we get a confident mismatch)
     stage = "address/city validation";
     const addressVerification = await verifyDeliveryAddress(combined.consignee);
@@ -155,6 +162,7 @@ export async function action({ request }: ActionFunctionArgs) {
     return json({
       combined,
       cityWarning,
+      courierWarning,
       verifiedAddress: addressVerification.verifiedAddress,
     });
   } catch (error) {

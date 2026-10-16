@@ -11,6 +11,7 @@ import {
   findShipmentByReference,
   normaliseCity,
   normalisePhone,
+  replaceCityInAddress,
   truncate,
   type InstaWorldRequest,
 } from "./instaworld.server.ts";
@@ -154,10 +155,14 @@ export function validateBulkCsv(text: string): BulkValidation {
     if (!reference || !value(row, "product_title") || !Number.isInteger(quantity) || quantity <= 0) return;
 
     const existing = groups.get(reference);
+    const rawCity = value(row, "city");
+    const city = normaliseCity(rawCity);
     const rowData = {
       reference,
       firstName: value(row, "first_name"), lastName: value(row, "last_name"), phone: normalisePhone(value(row, "phone")),
-      email: value(row, "email") || null, address: value(row, "address"), city: normaliseCity(value(row, "city")),
+      email: value(row, "email") || null,
+      address: replaceCityInAddress(value(row, "address"), rawCity, city),
+      city,
       province: value(row, "province"), postalCode: value(row, "postal_code"), country: value(row, "country") || "Pakistan",
       amount, paymentType: paymentType as "cod" | "paid",
     };

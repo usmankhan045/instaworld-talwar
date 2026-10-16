@@ -201,6 +201,23 @@ export function normaliseCity(raw: string | null | undefined): string {
   return matches[0] && matches[0].distance <= threshold ? matches[0].candidate : city;
 }
 
+/** Replace the order's original city spelling when it appears inside an address line. */
+export function replaceCityInAddress(
+  address: string | null | undefined,
+  rawCity: string | null | undefined,
+  normalizedCity: string,
+): string {
+  const value = address?.trim() || "";
+  const source = rawCity?.trim() || "";
+  if (!value || !source || !normalizedCity || source.toUpperCase() === normalizedCity.toUpperCase()) return value;
+
+  const escapedSource = source.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return value.replace(
+    new RegExp(`(^|[\\s,./-])${escapedSource}(?=$|[\\s,./-])`, "gi"),
+    `$1${normalizedCity}`,
+  );
+}
+
 /**
  * Truncate a string to a max byte/char length, trimming at a word boundary.
  */

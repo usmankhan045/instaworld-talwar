@@ -29,6 +29,8 @@ import test from "node:test";
 
 const SOURCE_PATH = "extensions/instaworld-booking/src/ActionExtension.jsx";
 const SOURCE = readFileSync(SOURCE_PATH, "utf8");
+const BULK_SOURCE_PATH = "extensions/instaworld-booking/src/BulkBookExtension.jsx";
+const BULK_SOURCE = readFileSync(BULK_SOURCE_PATH, "utf8");
 
 const EXPECTED_APP_URL = "https://app.talwarstore.com";
 
@@ -138,4 +140,10 @@ test("extension does not call the InstaWorld API directly", () => {
     `${SOURCE_PATH}: direct InstaWorld API call found — the extension must only` +
       " call the app server, which enforces live-booking safety gates.",
   );
+});
+
+test("bulk booking leaves PostEx orders for separate booking", () => {
+  assert.match(BULK_SOURCE, /combined\?\.courier === "POSTEX"/);
+  assert.match(BULK_SOURCE, /status: "skipped"/);
+  assert.match(BULK_SOURCE, /Book it separately after the PostEx API is set up/);
 });
