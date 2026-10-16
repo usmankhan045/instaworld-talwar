@@ -15,62 +15,62 @@ datasource db {
 }
 
 model Session {
-  id            String    @id
-  shop          String
-  state         String
-  isOnline      Boolean   @default(false)
-  scope         String?
-  expires       DateTime?
-  accessToken   String
-  userId        BigInt?
-  firstName     String?
-  lastName      String?
-  email         String?
-  accountOwner  Boolean   @default(false)
-  locale        String?
-  collaborator  Boolean?  @default(false)
-  emailVerified Boolean?  @default(false)
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
 }
 
 model OrderBooking {
-  id              String    @id @default(cuid())
-  shop            String
-  orderId         String
-  orderNumber     String
-  trackingNumber  String?
-  status          String    @default("pending")
-  declaredWeight  Float?
-  paymentType     String?
-  amountDue       Float?
-  bookedAt        DateTime?
-  apiError        String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  shop           String
+  orderId        String
+  orderNumber    String
+  trackingNumber String?
+  status         String    @default("pending")
+  declaredWeight Float?
+  paymentType    String?
+  amountDue      Float?
+  bookedAt       DateTime?
+  apiError       String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@unique([shop, orderId], name: "orderBooking_unique")
   @@index([shop, orderNumber])
 }
 
 model Shipment {
-  id                    String            @id @default(cuid())
-  shop                  String
-  refNo                 String
-  trackingNumber        String?
-  status                String            @default("pending")
-  declaredWeight        Float?
-  paymentType           String?
-  amountDue             Float?
-  currencyCode          String?
-  bookedAt              DateTime?
-  instaworldStatus      String?           // Last known InstaWorld PublicStatusCode
-  shopifyFulfillmentId  String?           // Shopify fulfillment GID
-  lastSyncedAt          DateTime?         // When this shipment was last synced
-  createdAt             DateTime          @default(now())
-  updatedAt             DateTime          @updatedAt
-  orders                ShipmentOrder[]
-  attempts              BookingAttempt[]
+  id                   String           @id @default(cuid())
+  shop                 String
+  refNo                String
+  trackingNumber       String?
+  status               String           @default("pending")
+  declaredWeight       Float?
+  paymentType          String?
+  amountDue            Float?
+  currencyCode         String?
+  bookedAt             DateTime?
+  instaworldStatus     String? // Last known InstaWorld PublicStatusCode
+  shopifyFulfillmentId String? // Shopify fulfillment GID
+  lastSyncedAt         DateTime? // When this shipment was last synced
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  orders               ShipmentOrder[]
+  attempts             BookingAttempt[]
 
   @@unique([shop, refNo], name: "shipment_shop_refNo_key")
   @@index([shop, trackingNumber])
@@ -84,13 +84,13 @@ model SyncState {
 }
 
 model ShipmentOrder {
-  id                String   @id @default(cuid())
-  shop              String
-  shipmentId        String
-  shopifyOrderId    String
+  id                 String   @id @default(cuid())
+  shop               String
+  shipmentId         String
+  shopifyOrderId     String
   shopifyOrderNumber String
-  createdAt         DateTime @default(now())
-  shipment          Shipment @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+  createdAt          DateTime @default(now())
+  shipment           Shipment @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
 
   @@unique([shop, shopifyOrderId], name: "shipmentOrder_shop_shopifyOrderId_key")
   @@unique([shipmentId, shopifyOrderId], name: "shipmentOrder_shipment_order_key")
@@ -98,41 +98,99 @@ model ShipmentOrder {
 }
 
 model BookingAttempt {
-  id                String   @id @default(cuid())
-  shop              String
-  shipmentId        String
-  idempotencyKey    String
-  status            String   @default("created")
+  id                 String    @id @default(cuid())
+  shop               String
+  shipmentId         String
+  idempotencyKey     String
+  status             String    @default("created")
   requestFingerprint String
-  requestPayload    String?
-  lastErrorCode     String?
-  lastErrorMessage  String?
-  lastHttpStatus    Int?
-  startedAt         DateTime?
-  completedAt       DateTime?
-  leaseExpiresAt    DateTime?
-  leaseToken        String?
-  recoveryCount     Int      @default(0)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  shipment          Shipment @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+  requestPayload     String?
+  lastErrorCode      String?
+  lastErrorMessage   String?
+  lastHttpStatus     Int?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  leaseExpiresAt     DateTime?
+  leaseToken         String?
+  recoveryCount      Int       @default(0)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  shipment           Shipment  @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
 
   @@unique([shop, idempotencyKey], name: "bookingAttempt_shop_idempotencyKey_key")
   @@unique([shop, shipmentId], name: "bookingAttempt_shop_shipmentId_key")
 }
 
 model OrderReservation {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   shop           String
   shopifyOrderId String
   attemptId      String
-  state          String   @default("active")
+  state          String    @default("active")
   leaseExpiresAt DateTime
   releasedAt     DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@unique([shop, shopifyOrderId], name: "orderReservation_shop_shopifyOrderId_key")
   @@unique([attemptId, shopifyOrderId], name: "orderReservation_attempt_order_key")
   @@index([shop, attemptId])
+}
+
+model CallJob {
+  id                 String        @id @default(cuid())
+  shop               String
+  shopifyOrderId     String
+  shopifyOrderNumber String
+  customerName       String
+  phone              String
+  productSummary     String
+  normalizedAddress  String
+  orderStatus        String        @default("pending")
+  addressStatus      String        @default("pending")
+  callStatus         String        @default("queued")
+  attemptCount       Int           @default(0)
+  nextAttemptAt      DateTime?
+  activeLeaseToken   String?
+  leaseExpiresAt     DateTime?
+  lastCallAttemptId  String?
+  bookingAttemptId   String?
+  confirmedAt        DateTime?
+  cancelledAt        DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  attempts           CallAttempt[]
+
+  @@unique([shop, shopifyOrderId], name: "callJob_shop_shopifyOrderId_key")
+  @@index([shop, callStatus, nextAttemptAt])
+  @@index([shop, phone])
+}
+
+model CallAttempt {
+  id                String    @id @default(cuid())
+  callJobId         String
+  attemptNumber     Int
+  asteriskCallId    String?
+  sipProviderCallId String?
+  status            String    @default("created")
+  orderChoice       String?
+  addressChoice     String?
+  callResult        String?
+  spokenNameText    String?
+  spokenProductText String?
+  spokenAddressText String?
+  audioFileKeys     String?
+  failureCode       String?
+  failureMessage    String?
+  startedAt         DateTime?
+  answeredAt        DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  callJob           CallJob   @relation(fields: [callJobId], references: [id], onDelete: Restrict)
+
+  @@unique([callJobId, attemptNumber], name: "callAttempt_callJobId_attemptNumber_key")
+  @@unique([asteriskCallId], name: "callAttempt_asteriskCallId_key")
+  @@index([callJobId, status])
+  @@index([sipProviderCallId])
 }

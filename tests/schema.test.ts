@@ -5,7 +5,7 @@
  *   1. The Prisma schema itself is syntactically valid (`prisma validate`).
  *   2. The schema file declares the correct provider, all six models, every
  *      unique constraint, and every @@index that the application relies on.
- *   3. The PostgreSQL migration file exists and covers all six tables.
+ *   3. The PostgreSQL migrations cover the existing and calling tables.
  *
  * Running `npm test` does not require DATABASE_URL or any live connection.
  */
@@ -18,6 +18,8 @@ import test from "node:test";
 const SCHEMA_PATH = "prisma/schema.prisma";
 const MIGRATION_PATH =
   "prisma/migrations/20261014100000_init_postgres/migration.sql";
+const CALLING_MIGRATION_PATH =
+  "prisma/migrations/20261016130000_add_calling_ivr_jobs/migration.sql";
 
 /** Read a file relative to the project root. */
 function readFile(path: string): string {
@@ -76,7 +78,7 @@ test("schema declares DATABASE_URL and DIRECT_DATABASE_URL", () => {
   );
 });
 
-test("all six models are declared in schema", () => {
+test("all application models are declared in schema", () => {
   const schema = readFile(SCHEMA_PATH);
   const expectedModels = [
     "Session",
@@ -85,6 +87,8 @@ test("all six models are declared in schema", () => {
     "ShipmentOrder",
     "BookingAttempt",
     "OrderReservation",
+    "CallJob",
+    "CallAttempt",
   ];
   for (const model of expectedModels) {
     assert.ok(
@@ -111,6 +115,10 @@ test("shop-scoped unique constraints are declared in schema", () => {
     // OrderReservation
     'name: "orderReservation_shop_shopifyOrderId_key"',
     'name: "orderReservation_attempt_order_key"',
+    // Calling IVR
+    'name: "callJob_shop_shopifyOrderId_key"',
+    'name: "callAttempt_callJobId_attemptNumber_key"',
+    'name: "callAttempt_asteriskCallId_key"',
   ];
   for (const constraint of expectedConstraints) {
     assert.ok(
@@ -135,6 +143,14 @@ test("shop-scoped indexes are declared in schema", () => {
     schema.includes("@@index([shop, attemptId])"),
     "OrderReservation must have @@index([shop, attemptId])",
   );
+  assert.ok(
+    schema.includes("@@index([shop, callStatus, nextAttemptAt])"),
+    "CallJob must have a queue index",
+  );
+  assert.ok(
+    schema.includes("@@index([callJobId, status])"),
+    "CallAttempt must have a status index",
+  );
 });
 
 test("foreign-key relations are declared in schema", () => {
@@ -147,6 +163,8 @@ test("foreign-key relations are declared in schema", () => {
   // Relation fields exist
   assert.match(schema, /orders\s+ShipmentOrder\[\]/, "Shipment must have orders relation");
   assert.match(schema, /attempts\s+BookingAttempt\[\]/, "Shipment must have attempts relation");
+  assert.match(schema, /attempts\s+CallAttempt\[\]/, "CallJob must have attempts relation");
+  assert.match(schema, /callJob\s+CallJob\s+@relation/, "CallAttempt must relate to CallJob");
 });
 
 // ---------------------------------------------------------------------------
@@ -220,6 +238,37 @@ test("postgresql migration includes all shop-scoped unique indexes", () => {
       `migration.sql must include unique index "${idx}"`,
     );
   }
+});
+
+test("calling IVR migration creates the call queue tables and constraints", () => {
+  const sql = readFile(CALLING_MIGRATION_PATH);
+  for (const table of ["CallJob", "CallAttempt"]) {
+    assert.ok(
+      sql.includes(`CREATE TABLE "${table}"`),
+      `calling migration must CREATE TABLE "${table}"`,
+    );
+  }
+  for (const index of [
+    "CallJob_shop_shopifyOrderId_key",
+    "CallJob_shop_callStatus_nextAttemptAt_idx",
+    "CallAttempt_callJobId_attemptNumber_key",
+    "CallAttempt_asteriskCallId_key",
+    "CallAttempt_callJobId_status_idx",
+    "CallAttempt_sipProviderCallId_idx",
+  ]) {
+    assert.ok(
+      sql.includes(index),
+      `calling migration must include index "${index}"`,
+    );
+  }
+  assert.ok(
+    sql.includes("CallAttempt_callJobId_fkey"),
+    "calling migration must include the CallAttempt foreign key",
+  );
+  assert.ok(
+    sql.includes("ON DELETE RESTRICT"),
+    "calling migration must protect CallJob history from accidental deletion",
+  );
 });
 
 test("migration_lock.toml locks provider to postgresql", () => {
