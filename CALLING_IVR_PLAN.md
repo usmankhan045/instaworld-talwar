@@ -1,6 +1,6 @@
 # Talwar Store Automated Order-Confirmation IVR Plan
 
-Status: Planning only — no outbound calls are enabled.
+Status: Implementation in progress — no outbound calls are enabled.
 
 Owner: Talwar Store
 
@@ -508,6 +508,9 @@ The feature is ready only when:
 - provider costs and billing increments are verified from call-detail records.
 
 ## 17. Immediate next implementation order
+
+Progress as of 2026-10-16: steps 1–6 are implemented. The call-status page is
+read-only and the call worker remains in dry-run mode. Step 7 is next.
 
 1. Add `CallJob` and `CallAttempt` Prisma models.
 2. Add the migration and test fixtures.
