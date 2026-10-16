@@ -15,6 +15,43 @@ export type InstaWorldConfig = {
 
 export const FIXED_SHIPMENT_WEIGHT_KG = 0.8;
 
+export const PAKISTAN_PROVINCE_ALIASES = [
+  "AZAD JAMMU AND KASHMIR",
+  "AZAD JAMMU KASHMIR",
+  "KHYBER PAKHTUNKHWA",
+  "KHYBER PAKHTUN KHAWA",
+  "ISLAMABAD CAPITAL TERRITORY",
+  "GILGIT BALTISTAN",
+  "BALOCHISTAN",
+  "PUNJAB",
+  "SINDH",
+  "AZAD KASHMIR",
+  "KASHMIR",
+  "KPK",
+  "K.P.",
+  "KP",
+  "NWFP",
+  "ICT",
+  "GB",
+  "AJK",
+  "PB",
+  "SD",
+  "BL",
+  "FATA",
+].sort((left, right) => right.length - left.length);
+
+export function stripProvinceQualifier(value: string): string {
+  let result = value.trim();
+  for (const province of PAKISTAN_PROVINCE_ALIASES) {
+    const escaped = province.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    result = result
+      .replace(new RegExp(`^${escaped}(?:[\\s,/-]+|$)`, "i"), "")
+      .replace(new RegExp(`(?:[\\s,/-]+)${escaped}$`, "i"), "")
+      .trim();
+  }
+  return result;
+}
+
 /**
  * Matches InstaWorld v2 CreateShipmentRequest schema exactly.
  * payment.type: "cod" | "paid"
@@ -84,7 +121,7 @@ export function normalisePhone(raw: string | null | undefined): string {
  */
 export function normaliseCity(raw: string | null | undefined): string {
   if (!raw) return "";
-  const city = raw.trim().toUpperCase();
+  const city = stripProvinceQualifier(raw.trim().toUpperCase());
 
   // Common alternate spellings / abbreviations seen in Pakistani Shopify stores
   const aliases: Record<string, string> = {

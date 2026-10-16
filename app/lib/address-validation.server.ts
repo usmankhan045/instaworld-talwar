@@ -7,6 +7,8 @@
  * provider disagreements become warnings and the original address is kept.
  */
 
+import {stripProvinceQualifier} from "./instaworld.server.ts";
+
 export type DeliveryAddressInput = {
   address1: string | null | undefined;
   address2?: string | null | undefined;
@@ -103,12 +105,12 @@ function normalize(value: string): string {
 }
 
 function stripCityQualifier(value: string): string {
-  return value
+  return stripProvinceQualifier(value
     .trim()
     .toLocaleLowerCase()
     .replace(/^(district|city|tehsil|gpo|division|ضلع|تحصیل)\s+/i, "")
     .replace(/\s+(district|city|tehsil|gpo|division)$/i, "")
-    .trim();
+    .trim());
 }
 
 function canonicalCity(value: string): string {

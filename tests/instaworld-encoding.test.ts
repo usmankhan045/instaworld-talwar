@@ -49,6 +49,15 @@ test("corrects small Pakistani city spelling mistakes", () => {
   assert.equal(normaliseCity("Islamabd"), "ISLAMABAD");
 });
 
+test("removes Pakistani province names and abbreviations from city input", () => {
+  assert.equal(normaliseCity("Swabi KPK"), "SWABI");
+  assert.equal(normaliseCity("Swabi, Khyber Pakhtunkhwa"), "SWABI");
+  assert.equal(normaliseCity("Lahore Punjab"), "LAHORE");
+  assert.equal(normaliseCity("Karachi Sindh"), "KARACHI");
+  assert.equal(normaliseCity("Gilgit GB"), "GILGIT");
+  assert.equal(normaliseCity("Muzaffarabad AJK"), "MUZAFFARABAD");
+});
+
 test("corrects the city spelling inside the complete address", () => {
   const rawCity = "Islamabd";
   const city = normaliseCity(rawCity);
