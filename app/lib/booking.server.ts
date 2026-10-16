@@ -175,7 +175,7 @@ export async function bookCombinedOrders(
     select: {
       shopifyOrderId: true,
       shopifyOrderNumber: true,
-      shipment: {select: {refNo: true, status: true, instaworldStatus: true}},
+      shipment: {select: {id: true, refNo: true, status: true, instaworldStatus: true}},
     },
   });
   const cancelledLinkedOrderIds = new Set<string>();
@@ -187,6 +187,10 @@ export async function bookCombinedOrders(
     const localStatus = `${link.shipment.status} ${link.shipment.instaworldStatus || ""}`.toUpperCase();
     if (!remote || isCancelledShipment(remote) || localStatus.includes("CANCEL")) {
       cancelledLinkedOrderIds.add(link.shopifyOrderId);
+      await prisma.shipment.update({
+        where: {id: link.shipment.id},
+        data: {status: "cancelled", instaworldStatus: "CANCELLED"},
+      });
     }
   }
   if (cancelledLinkedOrderIds.size > 0) {
