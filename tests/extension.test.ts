@@ -146,8 +146,8 @@ test("bulk booking does not contain a PostEx courier skip", () => {
   assert.doesNotMatch(BULK_SOURCE, /courierWarning|POSTEX/);
 });
 
-test("booking extension offers compatible customer orders", () => {
-  assert.match(SOURCE, /Other compatible orders from this customer/);
+test("booking extension offers other customer orders", () => {
+  assert.match(SOURCE, /Other orders from this customer/);
   assert.match(SOURCE, /relatedOrders/);
   assert.match(SOURCE, /Add order #\{order\.orderNumber\}/);
 });

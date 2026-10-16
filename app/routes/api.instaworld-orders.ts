@@ -135,25 +135,41 @@ export async function action({ request }: ActionFunctionArgs) {
     // extension before booking; incompatible addresses/payment states are
     // filtered here so they never appear as compatible suggestions.
     let relatedOrders: Array<{id: string; orderNumber: string; createdAt: string; cancelledAt: string | null}> = [];
+    const customerId = combined.orders[0]?.customer?.id;
     const customerEmail = combined.orders[0]?.email?.trim();
-    if (customerEmail) {
+    const customerNumericId = customerId?.split("/").pop();
+    const consignee = combined.consignee;
+    const searchTerms = [
+      customerNumericId ? `customer_id:${customerNumericId}` : "",
+      customerEmail ? `email:${customerEmail}` : "",
+      consignee.phone ? `phone:${consignee.phone.replace(/[^\d+]/g, "")}` : "",
+      consignee.name?.trim() || "",
+      // Address terms catch orders where the customer checked out with a
+      // different email/phone but the same delivery details.
+      consignee.address1?.trim() || "",
+    ].filter((term, index, terms) => term && terms.indexOf(term) === index);
+    if (searchTerms.length > 0) {
       try {
-        const candidates = await searchShopifyOrders(admin, `email:${customerEmail}`);
-        const candidateIds = candidates
-          .filter((candidate) => !orderIds.includes(candidate.id) && !candidate.cancelledAt)
-          .map((candidate) => candidate.id)
-          .slice(0, 24);
+        const candidateMap = new Map<string, {id: string; orderNumber: string; createdAt: string; cancelledAt: string | null}>();
+        for (const searchTerm of searchTerms) {
+          try {
+            const candidates = await searchShopifyOrders(admin, searchTerm);
+            for (const candidate of candidates) {
+              if (!orderIds.includes(candidate.id) && !candidate.cancelledAt) {
+                candidateMap.set(candidate.id, candidate);
+              }
+            }
+          } catch (searchError) {
+            console.warn(`[InstaWorld orders API] customer search failed for ${searchTerm}`, searchError);
+          }
+        }
+        const candidateIds = [...candidateMap.keys()].slice(0, 24);
         if (candidateIds.length > 0) {
           const candidateOrders = await getShopifyOrders(admin, candidateIds);
           relatedOrders = candidateOrders
-            .filter((candidate) => {
-              try {
-                combineOrders([...orders, candidate]);
-                return true;
-              } catch {
-                return false;
-              }
-            })
+            // Show all other active orders for this customer. The merchant
+            // can add one, then the normal preview explains any address or
+            // payment incompatibility instead of hiding the order.
             .map(({id, orderNumber, createdAt, cancelledAt}) => ({id, orderNumber, createdAt, cancelledAt}));
         }
       } catch (relatedOrderError) {
