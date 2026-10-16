@@ -53,6 +53,13 @@ The first real Piper preview on the local Mac generated fictional greeting and
 address WAVs in 8 kHz mono PCM. File format and generation passed; Urdu
 intelligibility and pronunciation still require the merchant to listen, and
 the seven fixed prompts have not yet been recorded.
+Merchant review rejected the initial Fasih voice as unnatural and
+non-native-sounding. It is a **no-go** for customer calls. A free female Urdu
+Piper candidate is under local comparison with mixed-script and Urdu-script
+fictional text; it is not approved based on gender or file format alone. If it
+also fails native-speaker listening review, test another licensed voice or
+record the fixed prompts with a native female speaker. Never silently fall
+back to the rejected voice.
 
 Connecting it later requires a separate explicit change and acceptance run:
 restore the `orders/create` subscription, map Shopify orders into the

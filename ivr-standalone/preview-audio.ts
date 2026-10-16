@@ -5,13 +5,15 @@ import {renderDynamicAudio} from "./audio.ts";
 
 const modelPath = process.env.PIPER_MODEL;
 if (!modelPath) throw new Error("PIPER_MODEL is required for local audio preview");
+const variant = process.env.IVR_PREVIEW_VARIANT || "mixed";
+if (variant !== "mixed" && variant !== "urdu") throw new Error("IVR_PREVIEW_VARIANT must be mixed or urdu");
 
 const manifest = buildCallAudioManifest({
   id: "fictional-preview",
   shopifyOrderNumber: "TEST-ONLY",
-  customerName: "Ali Khan",
-  productSummary: "Hamtaa Handmade x 2",
-  normalizedAddress: "House 12, Lahore, Punjab, Pakistan",
+  customerName: variant === "urdu" ? "علی خان" : "Ali Khan",
+  productSummary: variant === "urdu" ? "حماتا ہینڈ میڈ، دو عدد" : "Hamtaa Handmade x 2",
+  normalizedAddress: variant === "urdu" ? "مکان نمبر بارہ، لاہور، پنجاب، پاکستان" : "House 12, Lahore, Punjab, Pakistan",
 });
 
 const files = await renderDynamicAudio(manifest, {
@@ -21,4 +23,4 @@ const files = await renderDynamicAudio(manifest, {
   privateSoundDir: resolve(process.env.IVR_PREVIEW_DIR || "./var/ivr-preview"),
 });
 
-process.stdout.write(`LOCAL AUDIO PREVIEW ONLY — fictional data, no calls\nGreeting: ${manifest.dynamicSegments[0].text}\nWAV: ${files.greeting}\nAddress: ${manifest.dynamicSegments[1].text}\nWAV: ${files.address}\n`);
+process.stdout.write(`LOCAL AUDIO PREVIEW ONLY — ${variant} fictional text, no calls\nGreeting: ${manifest.dynamicSegments[0].text}\nWAV: ${files.greeting}\nAddress: ${manifest.dynamicSegments[1].text}\nWAV: ${files.address}\n`);

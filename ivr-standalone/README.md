@@ -26,6 +26,10 @@ Listen to both files and judge names, English product words, digits, and
 address pronunciation. This command does not render the seven fixed prompts;
 those still need recording and human review.
 
+Use `IVR_PREVIEW_VARIANT=urdu` to compare wholly Urdu-script fictional text
+against the default mixed-script sample. This is only voice evaluation: real
+customer names and addresses must not be guessed or translated automatically.
+
 On a Mac with `uv`, Piper can run in an isolated temporary environment with
 `uv run --no-project --with piper-tts npm run ivr:preview-audio` (set
 `PIPER_MODEL` as above). This does not install Piper into the app dependencies.
@@ -78,10 +82,11 @@ tree, readable by the Asterisk service user.
 Install `infra/asterisk/talwar-ivr-test.extensions.conf` as a custom dialplan
 context on the PBX. Add the seven fixed Urdu WAV prompts listed in
 `audio/ivr/README.md` under `/var/lib/asterisk/sounds/talwar`. The service
-checks that they exist before it starts. Install Piper and ffmpeg on the PBX
-host; the [Urdu Fasih Piper voice](https://huggingface.co/rhasspy/piper-voices/tree/main/ur/ur_PK/fasih/medium)
-is one model to evaluate with Pakistani names, mixed Urdu/English product
-titles and addresses. Put its model and JSON config outside this repository.
+checks that they exist before it starts. Install an approved voice renderer
+and ffmpeg on the PBX host. The earlier Fasih Piper voice was rejected for
+unnatural Urdu and must not be used for customer calls. A female Piper voice
+is under local evaluation but is not approved yet. Keep voice models and JSON
+configs outside this repository.
 Dynamic audio is converted to private mono 8 kHz WAV and cached by text hash.
 Do not enable real test calling until prompt quality, DTMF and SIP trunk
 configuration pass manual checks.
