@@ -5,6 +5,7 @@ import {
   buildInstaWorldAddress,
   FIXED_SHIPMENT_WEIGHT_KG,
   isCancelledShipment,
+  isDeliveredShipment,
   normaliseCity,
   replaceCityInAddress,
   stringifyForInstaWorld,
@@ -96,4 +97,10 @@ test("recognizes canceled InstaWorld shipments so they can be booked again", () 
   assert.equal(isCancelledShipment({trackingNumber: "126", raw: {status: {code: "CANCELLED"}}}), true);
   assert.equal(isCancelledShipment({trackingNumber: "127", raw: {is_cancelled: true}}), true);
   assert.equal(isCancelledShipment({trackingNumber: "125", raw: {status: "BOOKED"}}), false);
+});
+
+test("recognizes delivered InstaWorld shipments so they are not combined again", () => {
+  assert.equal(isDeliveredShipment({trackingNumber: "123", raw: {status: {code: "DELIVERED"}}}), true);
+  assert.equal(isDeliveredShipment({trackingNumber: "124", raw: {public_status: "Delivered"}}), true);
+  assert.equal(isDeliveredShipment({trackingNumber: "125", raw: {status: "IN_TRANSIT"}}), false);
 });

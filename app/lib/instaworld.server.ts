@@ -377,6 +377,29 @@ export function isCancelledShipment(shipment: InstaWorldShipment | null): boolea
   return cancellationFlag || status.includes("CANCEL");
 }
 
+export function isDeliveredShipment(shipment: InstaWorldShipment | null): boolean {
+  if (!shipment || typeof shipment.raw !== "object" || !shipment.raw) return false;
+  const raw = shipment.raw as Record<string, unknown>;
+  const statusObject = raw.status && typeof raw.status === "object"
+    ? raw.status as Record<string, unknown>
+    : null;
+  const status = [
+    raw.status,
+    statusObject?.code,
+    statusObject?.name,
+    statusObject?.label,
+    raw.public_status,
+    raw.publicStatus,
+    raw.shipment_status,
+    raw.shipmentStatus,
+    raw.state,
+  ]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ")
+    .toUpperCase();
+  return status.includes("DELIVERED");
+}
+
 /** Keep product lines visible while declaring one fixed weight for the parcel. */
 export function allocateShipmentWeight(itemCount: number): number[] {
   if (itemCount <= 0) return [];

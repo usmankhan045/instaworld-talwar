@@ -9,7 +9,12 @@ import {
   searchShopifyOrders,
   formatShopifyError,
 } from "../lib/shopify-orders.server";
-import { normaliseCity, requireInstaWorldConfig } from "../lib/instaworld.server";
+import {
+  findShipmentByReference,
+  isDeliveredShipment,
+  normaliseCity,
+  requireInstaWorldConfig,
+} from "../lib/instaworld.server";
 import { verifyDeliveryAddress } from "../lib/address-validation.server";
 import { authenticate } from "../shopify.server";
 
@@ -190,11 +195,18 @@ export async function action({ request }: ActionFunctionArgs) {
         const candidateIds = [...candidateMap.keys()].slice(0, 24);
         if (candidateIds.length > 0) {
           const candidateOrders = await getShopifyOrders(admin, candidateIds);
-          relatedOrders = candidateOrders
-            .filter((candidate) => hasReliableCustomerMatch(orders[0], candidate))
-            // Show all other active orders for this customer. The merchant
-            // can add one, then the normal preview explains any payment or
-            // delivery incompatibility instead of hiding a real match.
+          const matchingCandidates = candidateOrders.filter((candidate) => hasReliableCustomerMatch(orders[0], candidate));
+          const undeliveredCandidates = await Promise.all(matchingCandidates.map(async (candidate) => {
+            try {
+              const existingShipment = await findShipmentByReference(candidate.orderNumber, session.shop);
+              return existingShipment && isDeliveredShipment(existingShipment) ? null : candidate;
+            } catch (shipmentLookupError) {
+              console.warn(`[InstaWorld orders API] delivery lookup failed for #${candidate.orderNumber}`, shipmentLookupError);
+              return candidate;
+            }
+          }));
+          relatedOrders = undeliveredCandidates
+            .filter((candidate): candidate is typeof matchingCandidates[number] => Boolean(candidate))
             .map(({id, orderNumber, createdAt, cancelledAt}) => ({id, orderNumber, createdAt, cancelledAt}));
         }
       } catch (relatedOrderError) {
