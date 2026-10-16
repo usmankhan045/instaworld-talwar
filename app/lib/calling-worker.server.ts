@@ -3,6 +3,7 @@ import {randomUUID} from "node:crypto";
 import type {CallAttempt, CallJob} from "@prisma/client";
 
 import prisma from "../db.server.ts";
+import {buildCallAudioManifest, type CallAudioManifest} from "./calling-audio.server.ts";
 
 export const CALL_JOB_LEASE_MS = 5 * 60 * 1000;
 
@@ -27,10 +28,7 @@ export type DryRunCallPlan = {
   shopifyOrderId: string;
   shopifyOrderNumber: string;
   destination: string;
-  segments: Array<
-    | {kind: "fixed"; key: string}
-    | {kind: "dynamic"; key: "customer" | "product" | "address"; text: string}
-  >;
+  audioManifest: CallAudioManifest;
   willPlaceCall: false;
   willBookShipment: false;
 };
@@ -129,14 +127,7 @@ export function buildDryRunCallPlan(
     shopifyOrderId: job.shopifyOrderId,
     shopifyOrderNumber: job.shopifyOrderNumber,
     destination: job.phone,
-    segments: [
-      {kind: "fixed", key: "greeting"},
-      {kind: "dynamic", key: "customer", text: job.customerName},
-      {kind: "dynamic", key: "product", text: job.productSummary},
-      {kind: "fixed", key: "order-choice"},
-      {kind: "dynamic", key: "address", text: job.normalizedAddress},
-      {kind: "fixed", key: "address-choice"},
-    ],
+    audioManifest: buildCallAudioManifest(job),
     willPlaceCall: false,
     willBookShipment: false,
   };

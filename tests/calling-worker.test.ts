@@ -24,17 +24,24 @@ test("dry-run call plan contains personalized order and address segments", () =>
   assert.equal(plan.shopifyOrderNumber, "1150");
   assert.equal(plan.willPlaceCall, false);
   assert.equal(plan.willBookShipment, false);
+  assert.equal(plan.audioManifest.fixedRecordings.length, 7);
   assert.deepEqual(
-    plan.segments,
+    plan.audioManifest.fixedRecordings.map((recording) => recording.fileKey),
     [
-      {kind: "fixed", key: "greeting"},
-      {kind: "dynamic", key: "customer", text: "Saifullah Khan"},
-      {kind: "dynamic", key: "product", text: "Handmade x 2"},
-      {kind: "fixed", key: "order-choice"},
-      {kind: "dynamic", key: "address", text: "Bacha Khan Complex, SWABI, Khyber Pakhtunkhwa, Pakistan"},
-      {kind: "fixed", key: "address-choice"},
+      "order-choice.wav",
+      "address-choice.wav",
+      "order-confirmed.wav",
+      "order-cancelled.wav",
+      "no-input-retry.wav",
+      "invalid-input.wav",
+      "address-needs-review.wav",
     ],
   );
+  assert.equal(plan.audioManifest.dynamicSegments.length, 2);
+  assert.match(plan.audioManifest.dynamicSegments[0].text, /Saifullah Khan/);
+  assert.match(plan.audioManifest.dynamicSegments[0].text, /ہینڈ میڈ x 2/);
+  assert.match(plan.audioManifest.dynamicSegments[1].text, /SWABI/);
+  assert.match(plan.audioManifest.dynamicSegments[1].text, /Khyber Pakhtunkhwa/);
 });
 
 test("call-job lease is long enough for preparation but finite", () => {
