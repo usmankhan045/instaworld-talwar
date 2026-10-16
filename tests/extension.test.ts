@@ -142,8 +142,6 @@ test("extension does not call the InstaWorld API directly", () => {
   );
 });
 
-test("bulk booking leaves PostEx orders for separate booking", () => {
-  assert.match(BULK_SOURCE, /combined\?\.courier === "POSTEX"/);
-  assert.match(BULK_SOURCE, /status: "skipped"/);
-  assert.match(BULK_SOURCE, /Book it separately after the PostEx API is set up/);
+test("bulk booking does not contain a PostEx courier skip", () => {
+  assert.doesNotMatch(BULK_SOURCE, /courierWarning|POSTEX/);
 });

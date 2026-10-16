@@ -110,17 +110,6 @@ function BulkBookExtension() {
           continue;
         }
 
-        // PostEx is not connected to InstaWorld yet. Keep the order visible in
-        // the result list so it can be booked separately once that API is ready.
-        if (previewPayload.courierWarning || previewPayload.combined?.courier === "POSTEX") {
-          updateResult(orderId, {
-            status: "skipped",
-            orderNumber: previewPayload.combined?.orders?.[0]?.orderNumber || "Order number unavailable",
-            message: previewPayload.courierWarning || "This order is rejected because PostEx booking is temporarily disabled in InstaWorld. Book it separately after the PostEx API is set up.",
-          });
-          continue;
-        }
-
         const combined = previewPayload.combined;
         if (!combined) {
           updateResult(orderId, {status: "error", message: "Could not load this order’s details."});

@@ -2,16 +2,11 @@ import "@shopify/ui-extensions/preact";
 import {render} from "preact";
 import {useState} from "preact/hooks";
 import {
-  useApplyAttributeChange,
   useApplyShippingAddressChange,
-  useAttributeValues,
   useBuyerJourneyIntercept,
   useShippingAddress,
 } from "@shopify/ui-extensions/checkout/preact";
 import {isPakistanCity, PAKISTAN_CITIES} from "./pakistanCities";
-
-const COURIER_ATTRIBUTE = "delivery_courier";
-const COURIERS = ["TCS", "POSTEX"];
 
 export default function extension() {
   render(<Extension />, document.body);
@@ -20,14 +15,11 @@ export default function extension() {
 function Extension() {
   const shippingAddress = useShippingAddress();
   const applyShippingAddressChange = useApplyShippingAddressChange();
-  const applyAttributeChange = useApplyAttributeChange();
-  const [courierAttribute] = useAttributeValues([COURIER_ATTRIBUTE]);
   const [citySearch, setCitySearch] = useState("");
   const [error, setError] = useState("");
   const countryCode = shippingAddress?.countryCode;
   const isPakistan = !countryCode || countryCode === "PK";
   const currentCity = String(shippingAddress?.city || "").trim();
-  const selectedCourier = COURIERS.includes(String(courierAttribute || "")) ? courierAttribute : "";
   const filteredCities = PAKISTAN_CITIES.filter((city) =>
     city.toLowerCase().includes(citySearch.trim().toLowerCase()),
   ).slice(0, 50);
@@ -59,19 +51,6 @@ function Extension() {
     }
   }
 
-  async function handleCourierChange(event) {
-    const courier = event.currentTarget.value;
-    setError("");
-    const result = await applyAttributeChange({
-      type: "updateAttribute",
-      key: COURIER_ATTRIBUTE,
-      value: courier,
-    });
-    if (result?.type === "error") {
-      setError("Shopify could not save the courier choice. Please choose it again.");
-    }
-  }
-
   return (
     <s-section heading="Delivery city">
       <s-text-field
@@ -90,17 +69,7 @@ function Extension() {
         <s-option value="" disabled>Select a city</s-option>
         {filteredCities.map((city) => <s-option key={city} value={city}>{city}</s-option>)}
       </s-select>
-      <s-select
-        label="Select courier"
-        value={selectedCourier}
-        onChange={handleCourierChange}
-        error={error || undefined}
-      >
-        <s-option value="">No courier selected</s-option>
-        <s-option value="TCS">TCS</s-option>
-        <s-option value="POSTEX">PostEx</s-option>
-      </s-select>
-      <s-text tone="neutral">Courier selection is optional. You can choose it when available.</s-text>
+      <s-text tone="neutral">All website orders are delivered through TCS.</s-text>
     </s-section>
   );
 }

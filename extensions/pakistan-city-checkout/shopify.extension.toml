@@ -31,8 +31,8 @@ api_access = true
 # network_access = true
 
 # Prevent checkout from continuing when the shipping city is not one of the
-# canonical Pakistan city names shown by this extension. Courier selection is
-# optional and never blocks checkout.
+# canonical Pakistan city names shown by this extension. All website orders use
+# TCS and courier selection is not shown at checkout.
 block_progress = true
 
 # Learn more about loading metafields on checkout resources, including the cart,

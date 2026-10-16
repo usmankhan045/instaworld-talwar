@@ -122,9 +122,6 @@ export function combineOrders(
     if (!sameAddress || normalizedPhone(address.phone) !== normalizedPhone(firstAddress.phone)) {
       throw new Error(`Order #${order.orderNumber} has incompatible recipient or delivery details.`);
     }
-    if (order.courier && first.courier && order.courier !== first.courier) {
-      throw new Error(`Orders #${first.orderNumber} and #${order.orderNumber} have different couriers. Book them separately.`);
-    }
   }
 
   const payments = orders.map(getPayment);
@@ -183,6 +180,6 @@ export function combineOrders(
       currencyCode,
     },
     consignee: firstAddress,
-    courier: first.courier || orders.find((order) => order.courier)?.courier || null,
+    courier: "TCS",
   };
 }

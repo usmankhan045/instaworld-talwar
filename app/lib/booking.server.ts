@@ -22,9 +22,6 @@ import type {ShopifyOrder} from "./shopify-orders.server";
 import {verifyDeliveryAddress} from "./address-validation.server";
 
 const RESERVATION_LEASE_MS = 5 * 60 * 1000;
-export const POSTEX_BOOKING_REJECTION =
-  "This order is rejected because PostEx booking is temporarily disabled in InstaWorld. Book it separately after the PostEx API is set up.";
-
 function fingerprint(orders: ShopifyOrder[], declaredWeight: number) {
   return JSON.stringify({
     orderIds: orders.map((order) => order.id).sort(),
@@ -74,7 +71,7 @@ function buildRequest(
   return {
     refNo,
     locationId,
-    remarks: `allow to open; courier: ${combined.courier || "UNSELECTED"}`,
+    remarks: "allow to open",
     payment: {
       type: getPaymentType(combined.payment.treatment),
       amount: combined.payment.amountDue,
@@ -112,11 +109,6 @@ export async function bookCombinedOrders(
   _declaredWeight: number,
   admin?: unknown,
 ) {
-  const postExOrders = orders.filter((order) => order.courier === "POSTEX");
-  if (postExOrders.length > 0) {
-    const orderNumbers = postExOrders.map((order) => `#${order.orderNumber}`).join(", ");
-    throw new Error(`${orderNumbers}: ${POSTEX_BOOKING_REJECTION}`);
-  }
   const config = requireInstaWorldConfig(shop);
   // The courier weighs the parcel at the office. Always book one fixed
   // shipment weight regardless of line count or product quantity.
