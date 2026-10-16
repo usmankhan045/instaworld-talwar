@@ -52,6 +52,13 @@ export function stripProvinceQualifier(value: string): string {
   return result;
 }
 
+function stripCityQualifier(value: string): string {
+  return value
+    .replace(/^(CITY|DISTRICT|TEHSIL|TOWN|GPO|DIVISION)[\s,/-]+/i, "")
+    .replace(/[\s,/-]+(CITY|DISTRICT|TEHSIL|TOWN|GPO|DIVISION)$/i, "")
+    .trim();
+}
+
 /**
  * Matches InstaWorld v2 CreateShipmentRequest schema exactly.
  * payment.type: "cod" | "paid"
@@ -121,7 +128,7 @@ export function normalisePhone(raw: string | null | undefined): string {
  */
 export function normaliseCity(raw: string | null | undefined): string {
   if (!raw) return "";
-  const city = stripProvinceQualifier(raw.trim().toUpperCase());
+  const city = stripCityQualifier(stripProvinceQualifier(raw.trim().toUpperCase()));
 
   // Common alternate spellings / abbreviations seen in Pakistani Shopify stores
   const aliases: Record<string, string> = {

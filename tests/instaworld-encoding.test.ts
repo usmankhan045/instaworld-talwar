@@ -56,6 +56,9 @@ test("removes Pakistani province names and abbreviations from city input", () =>
   assert.equal(normaliseCity("Karachi Sindh"), "KARACHI");
   assert.equal(normaliseCity("Gilgit GB"), "GILGIT");
   assert.equal(normaliseCity("Muzaffarabad AJK"), "MUZAFFARABAD");
+  assert.equal(normaliseCity("City Lahore"), "LAHORE");
+  assert.equal(normaliseCity("Lahore City"), "LAHORE");
+  assert.equal(normaliseCity("District Swabi KPK"), "SWABI");
 });
 
 test("corrects the city spelling inside the complete address", () => {
