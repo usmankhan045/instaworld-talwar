@@ -135,12 +135,9 @@ export async function action({ request }: ActionFunctionArgs) {
     // extension before booking; incompatible addresses/payment states are
     // filtered here so they never appear as compatible suggestions.
     let relatedOrders: Array<{id: string; orderNumber: string; createdAt: string; cancelledAt: string | null}> = [];
-    const customerId = combined.orders[0]?.customer?.id;
     const customerEmail = combined.orders[0]?.email?.trim();
-    const customerNumericId = customerId?.split("/").pop();
     const consignee = combined.consignee;
     const searchTerms = [
-      customerNumericId ? `customer_id:${customerNumericId}` : "",
       customerEmail ? `email:${customerEmail}` : "",
       consignee.phone ? `phone:${consignee.phone.replace(/[^\d+]/g, "")}` : "",
       consignee.name?.trim() || "",
