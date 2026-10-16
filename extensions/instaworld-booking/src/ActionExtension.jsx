@@ -80,6 +80,7 @@ function Extension() {
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [search, setSearch] = useState("");
   const [results, setResults] = useState([]);
+  const [relatedOrders, setRelatedOrders] = useState([]);
   const [combined, setCombined] = useState(null);
   const [verifiedAddress, setVerifiedAddress] = useState(null);
   const [loading, setLoading] = useState(Boolean(currentOrderId));
@@ -113,11 +114,13 @@ function Extension() {
         setSelectedOrders(payload.orders);
         setCombined(null);
         setVerifiedAddress(null);
+        setRelatedOrders([]);
         return;
       }
       setSelectedOrders(payload.combined.orders || []);
       setCombined(payload.combined);
       setVerifiedAddress(payload.verifiedAddress || null);
+      setRelatedOrders(payload.relatedOrders || []);
       // Weight is always fixed at 0.8 kg
       setCityWarning(payload.cityWarning || "");
     } catch (previewError) {
@@ -132,6 +135,7 @@ function Extension() {
       setError(`${orderLabel}${previewError instanceof Error ? previewError.message : "Unable to validate this order."}`);
       setCombined(null);
       setVerifiedAddress(null);
+      setRelatedOrders([]);
     } finally {
       setLoading(false);
     }
@@ -249,6 +253,18 @@ function Extension() {
             {index > 0 && <s-button onClick={() => removeOrder(orderId)}>Remove</s-button>}
           </s-stack>
         ))}
+
+        {relatedOrders.length > 0 && (
+          <>
+            <s-text type="strong">Other compatible orders from this customer</s-text>
+            <s-text>Add another order to include it in this single shipment.</s-text>
+            {relatedOrders.map((order) => (
+              <s-button key={order.id} onClick={() => addOrder(order)} disabled={selectedOrderIds.includes(order.id)}>
+                Add order #{order.orderNumber}
+              </s-button>
+            ))}
+          </>
+        )}
 
         {loading && <s-text>Validating selected orders…</s-text>}
         {combined?.orders?.length > 1 && (

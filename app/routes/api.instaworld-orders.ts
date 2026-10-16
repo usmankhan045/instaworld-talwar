@@ -130,6 +130,39 @@ export async function action({ request }: ActionFunctionArgs) {
     stage = "order combination";
     const combined = combineOrders(orders);
 
+    // Suggest other recent orders from the same customer that can safely be
+    // added to this shipment. The merchant still explicitly adds them in the
+    // extension before booking; incompatible addresses/payment states are
+    // filtered here so they never appear as compatible suggestions.
+    let relatedOrders: Array<{id: string; orderNumber: string; createdAt: string; cancelledAt: string | null}> = [];
+    const customerEmail = combined.orders[0]?.email?.trim();
+    if (customerEmail) {
+      try {
+        const candidates = await searchShopifyOrders(admin, `email:${customerEmail}`);
+        const candidateIds = candidates
+          .filter((candidate) => !orderIds.includes(candidate.id) && !candidate.cancelledAt)
+          .map((candidate) => candidate.id)
+          .slice(0, 24);
+        if (candidateIds.length > 0) {
+          const candidateOrders = await getShopifyOrders(admin, candidateIds);
+          relatedOrders = candidateOrders
+            .filter((candidate) => {
+              try {
+                combineOrders([...orders, candidate]);
+                return true;
+              } catch {
+                return false;
+              }
+            })
+            .map(({id, orderNumber, createdAt, cancelledAt}) => ({id, orderNumber, createdAt, cancelledAt}));
+        }
+      } catch (relatedOrderError) {
+        // Suggestions are an enhancement; a Shopify search failure must not
+        // prevent the current order from being previewed or booked.
+        console.warn("[InstaWorld orders API] related customer order lookup failed", relatedOrderError);
+      }
+    }
+
     // Check address–city match (fail-open: only block if we get a confident mismatch)
     stage = "address/city validation";
     const addressVerification = await verifyDeliveryAddress(combined.consignee);
@@ -154,6 +187,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
     return json({
       combined,
+      relatedOrders,
       cityWarning,
       verifiedAddress: addressVerification.verifiedAddress,
     });
