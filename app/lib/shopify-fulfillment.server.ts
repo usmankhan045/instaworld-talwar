@@ -106,54 +106,58 @@ export async function createShopifyFulfillment(
   shopifyOrderIds: string[],
   trackingNumber: string,
 ): Promise<string | null> {
-  // Collect all open fulfillment orders across all Shopify orders
-  const fulfillmentOrderIds: string[] = [];
-  for (const orderId of shopifyOrderIds) {
-    const ids = await getFulfillmentOrderIds(admin, orderId);
-    fulfillmentOrderIds.push(...ids);
-  }
-
-  if (fulfillmentOrderIds.length === 0) {
-    console.warn("[shopify-fulfillment] No open fulfillment orders found for", shopifyOrderIds);
-    return null;
-  }
-
   const trackingUrl = `https://one-be.instaworld.pk/tracking/${trackingNumber}`;
+  let firstFulfillmentId: string | null = null;
+  let createdCount = 0;
 
-  const data = await gql(
-    admin,
-    `mutation FulfillmentCreate($fulfillment: FulfillmentInput!) {
-      fulfillmentCreate(fulfillment: $fulfillment) {
-        fulfillment {
-          id
-          status
+  // Shopify only allows fulfillment orders from the same Shopify order in a
+  // single fulfillmentCreate mutation. The InstaWorld parcel is combined,
+  // but each source Shopify order needs its own fulfillment record.
+  for (const orderId of shopifyOrderIds) {
+    const fulfillmentOrderIds = await getFulfillmentOrderIds(admin, orderId);
+    if (fulfillmentOrderIds.length === 0) {
+      console.warn("[shopify-fulfillment] No open fulfillment orders found for", orderId);
+      continue;
+    }
+
+    const data = await gql(
+      admin,
+      `mutation FulfillmentCreate($fulfillment: FulfillmentInput!) {
+        fulfillmentCreate(fulfillment: $fulfillment) {
+          fulfillment { id status }
+          userErrors { field message }
         }
-        userErrors {
-          field
-          message
-        }
-      }
-    }`,
-    {
-      fulfillment: {
-        lineItemsByFulfillmentOrder: fulfillmentOrderIds.map((id) => ({fulfillmentOrderId: id})),
-        trackingInfo: {
-          number: trackingNumber,
-          url: trackingUrl,
-          company: "InstaWorld",
+      }`,
+      {
+        fulfillment: {
+          lineItemsByFulfillmentOrder: fulfillmentOrderIds.map((id) => ({fulfillmentOrderId: id})),
+          trackingInfo: {
+            number: trackingNumber,
+            url: trackingUrl,
+            company: "InstaWorld",
+          },
+          notifyCustomer: false,
         },
-        notifyCustomer: false,
       },
-    },
-  );
+    );
 
-  const errors = data?.data?.fulfillmentCreate?.userErrors ?? [];
-  if (errors.length > 0) {
-    console.error("[shopify-fulfillment] createFulfillment userErrors:", errors);
-    return null;
+    const errors = data?.data?.fulfillmentCreate?.userErrors ?? [];
+    if (errors.length > 0) {
+      console.error("[shopify-fulfillment] createFulfillment userErrors for", orderId, errors);
+      continue;
+    }
+
+    const fulfillmentId = data?.data?.fulfillmentCreate?.fulfillment?.id ?? null;
+    if (fulfillmentId) {
+      firstFulfillmentId ||= fulfillmentId;
+      createdCount += 1;
+    }
   }
 
-  return data?.data?.fulfillmentCreate?.fulfillment?.id ?? null;
+  if (createdCount !== shopifyOrderIds.length) {
+    console.error("[shopify-fulfillment] Created fulfillments for", createdCount, "of", shopifyOrderIds.length, "source orders.");
+  }
+  return firstFulfillmentId;
 }
 
 /**
