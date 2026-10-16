@@ -211,8 +211,7 @@ export async function bookCombinedOrders(
   const idempotencyKey = randomUUID();
   // Use Shopify order number(s) as the human-readable refNo (e.g. "1006" or "1006+1007")
   const orderNumbers = orders.map((o) => o.orderNumber).join("+");
-  const prefix = config.refPrefix;
-  const baseRefNo = `${prefix}${orderNumbers}`.slice(0, 200);
+  const baseRefNo = orderNumbers.slice(0, 200);
   const leaseExpiresAt = new Date(Date.now() + RESERVATION_LEASE_MS);
 
   const {attempt, refNo, requestPayload} = await prisma.$transaction(async (tx) => {
@@ -244,41 +243,70 @@ export async function bookCombinedOrders(
       throw new Error(`${activeNumbers || "This order"} is already being booked. Wait for the current attempt to finish, then try again.`);
     }
 
-    // Failed attempts remain in the database for auditability. Reuse the
-    // readable reference for the first attempt, then add a retry suffix so a
-    // later retry cannot collide with the failed reservation.
-    const previousReference = await tx.shipment.findUnique({
+    const previousShipment = await tx.shipment.findUnique({
       where: {shipment_shop_refNo_key: {shop, refNo: baseRefNo}},
-      select: {id: true},
+      include: {attempts: {orderBy: {createdAt: "desc"}, take: 1}},
     });
-    const refNo = previousReference
-      ? `${baseRefNo.slice(0, 188)}-R${randomUUID().slice(0, 8)}`
-      : baseRefNo;
+    const refNo = baseRefNo;
     const requestPayload = buildRequest(verifiedCombined, orders, refNo, config.locationId!);
-    const shipment = await tx.shipment.create({
-      data: {
-        shop,
-        refNo,
-        status: "reserved",
-        declaredWeight,
-        paymentType: combined.payment.treatment,
-        amountDue: combined.payment.amountDue,
-        currencyCode: combined.payment.currencyCode,
-      },
-    });
-    const bookingAttempt = await tx.bookingAttempt.create({
-      data: {
-        id: attemptId,
-        shop,
-        shipmentId: shipment.id,
-        idempotencyKey,
-        status: "reserved",
-        requestFingerprint: fingerprint(orders, declaredWeight),
-        requestPayload: JSON.stringify(requestPayload),
-        leaseExpiresAt,
-        leaseToken: randomUUID(),
-      },
-    });
+    const shipment = previousShipment
+      ? await tx.shipment.update({
+          where: {id: previousShipment.id},
+          data: {
+            status: "reserved",
+            trackingNumber: null,
+            bookedAt: null,
+            instaworldStatus: null,
+            shopifyFulfillmentId: null,
+            lastSyncedAt: null,
+            declaredWeight,
+            paymentType: combined.payment.treatment,
+            amountDue: combined.payment.amountDue,
+            currencyCode: combined.payment.currencyCode,
+          },
+        })
+      : await tx.shipment.create({
+          data: {
+            shop,
+            refNo,
+            status: "reserved",
+            declaredWeight,
+            paymentType: combined.payment.treatment,
+            amountDue: combined.payment.amountDue,
+            currencyCode: combined.payment.currencyCode,
+          },
+        });
+    const previousAttempt = previousShipment?.attempts[0];
+    const bookingAttempt = previousAttempt
+      ? await tx.bookingAttempt.update({
+          where: {id: previousAttempt.id},
+          data: {
+            idempotencyKey,
+            status: "reserved",
+            requestFingerprint: fingerprint(orders, declaredWeight),
+            requestPayload: JSON.stringify(requestPayload),
+            leaseExpiresAt,
+            leaseToken: randomUUID(),
+            lastErrorCode: null,
+            lastErrorMessage: null,
+            lastHttpStatus: null,
+            startedAt: null,
+            completedAt: null,
+          },
+        })
+      : await tx.bookingAttempt.create({
+          data: {
+            id: attemptId,
+            shop,
+            shipmentId: shipment.id,
+            idempotencyKey,
+            status: "reserved",
+            requestFingerprint: fingerprint(orders, declaredWeight),
+            requestPayload: JSON.stringify(requestPayload),
+            leaseExpiresAt,
+            leaseToken: randomUUID(),
+          },
+        });
 
     try {
       for (const order of orders) {

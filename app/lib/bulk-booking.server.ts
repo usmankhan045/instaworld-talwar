@@ -203,13 +203,48 @@ async function bookOneBulkGroup(shop: string, group: BulkBookingGroup, locationI
     if (remote && !isCancelledShipment(remote)) {
       return {reference: group.reference, status: "skipped", trackingNumber: remote.trackingNumber, message: "Already booked in InstaWorld."};
     }
-    const local = await prisma.shipment.findUnique({where: {shipment_shop_refNo_key: {shop, refNo: group.reference}}, select: {trackingNumber: true}});
-    const bookingReference = local ? `${group.reference}-R${randomUUID().slice(0, 8)}`.slice(0, 100) : group.reference;
+    const local = await prisma.shipment.findUnique({
+      where: {shipment_shop_refNo_key: {shop, refNo: group.reference}},
+      include: {attempts: {orderBy: {createdAt: "desc"}, take: 1}},
+    });
+    const bookingReference = group.reference;
     stage = "creating the shipment request";
     const requestPayload = requestFor({...group, reference: bookingReference}, locationId);
     const idempotencyKey = randomUUID();
-    const shipment = await prisma.shipment.create({data: {shop, refNo: bookingReference, status: "submitting", declaredWeight: FIXED_SHIPMENT_WEIGHT_KG, paymentType: group.paymentType, amountDue: group.amount, currencyCode: "PKR"}});
-    const attempt = await prisma.bookingAttempt.create({data: {shop, shipmentId: shipment.id, idempotencyKey, status: "submitting", requestFingerprint: JSON.stringify({source: "whatsapp-csv", reference: group.reference}), requestPayload: JSON.stringify(requestPayload)}});
+    const shipment = local
+      ? await prisma.shipment.update({
+          where: {id: local.id},
+          data: {
+            status: "submitting",
+            trackingNumber: null,
+            bookedAt: null,
+            instaworldStatus: null,
+            shopifyFulfillmentId: null,
+            lastSyncedAt: null,
+            declaredWeight: FIXED_SHIPMENT_WEIGHT_KG,
+            paymentType: group.paymentType,
+            amountDue: group.amount,
+            currencyCode: "PKR",
+          },
+        })
+      : await prisma.shipment.create({data: {shop, refNo: bookingReference, status: "submitting", declaredWeight: FIXED_SHIPMENT_WEIGHT_KG, paymentType: group.paymentType, amountDue: group.amount, currencyCode: "PKR"}});
+    const previousAttempt = local?.attempts[0];
+    const attempt = previousAttempt
+      ? await prisma.bookingAttempt.update({
+          where: {id: previousAttempt.id},
+          data: {
+            idempotencyKey,
+            status: "submitting",
+            requestFingerprint: JSON.stringify({source: "whatsapp-csv", reference: group.reference}),
+            requestPayload: JSON.stringify(requestPayload),
+            lastErrorCode: null,
+            lastErrorMessage: null,
+            lastHttpStatus: null,
+            startedAt: null,
+            completedAt: null,
+          },
+        })
+      : await prisma.bookingAttempt.create({data: {shop, shipmentId: shipment.id, idempotencyKey, status: "submitting", requestFingerprint: JSON.stringify({source: "whatsapp-csv", reference: group.reference}), requestPayload: JSON.stringify(requestPayload)}});
     try {
       stage = "booking the shipment with InstaWorld";
       const result = await createShipment(requestPayload, idempotencyKey, shop);
