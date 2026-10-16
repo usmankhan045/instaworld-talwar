@@ -8,6 +8,7 @@
  */
 
 import {stripProvinceQualifier} from "./instaworld.server.ts";
+import {PAKISTAN_CITY_ALIASES} from "./pakistan-cities.ts";
 
 export type DeliveryAddressInput = {
   address1: string | null | undefined;
@@ -55,11 +56,11 @@ type GeocodeCandidate = {
 /** City aliases used by InstaWorld/Shopify addresses in Pakistan. */
 const CITY_ALIASES: Record<string, string[]> = {
   ISLAMABAD: ["islamabad", "isb", "اسلام آباد", "اسلاماباد"],
-  RAWALPINDI: ["rawalpindi", "rawalpinḍi", "pindi", "rwp", "راولپنڈی"],
+  RAWALPINDI: ["rawalpindi", "rawalpinḍi", "pindi", "rwp", "راولپنڈی", "راول پنڈی"],
   LAHORE: ["lahore", "lhr", "لاہور"],
   KARACHI: ["karachi", "khi", "کراچی"],
   PESHAWAR: ["peshawar", "peshāwar", "pew", "پشاور"],
-  FAISALABAD: ["faisalabad", "lyallpur", "fsd", "فیصل آباد"],
+  FAISALABAD: ["faisalabad", "lyallpur", "fsd", "فیصل آباد", "فیصلاباد"],
   MULTAN: ["multan", "ملتان"],
   GUJRANWALA: ["gujranwala", "gujranwālā", "گوجرانوالہ"],
   QUETTA: ["quetta", "کوئٹہ"],
@@ -92,7 +93,17 @@ const CITY_ALIASES: Record<string, string[]> = {
   NOWSHERA: ["nowshera"],
   KOHAT: ["kohat"],
   BANNU: ["bannu"],
+  BUREWALA: ["burewala", "بورے والا", "بوریوالا"],
 };
+
+for (const [city, aliases] of Object.entries(PAKISTAN_CITY_ALIASES)) {
+  const canonical = city.toUpperCase();
+  CITY_ALIASES[canonical] = [...new Set([
+    ...(CITY_ALIASES[canonical] || []),
+    city,
+    ...aliases,
+  ])];
+}
 
 function normalize(value: string): string {
   return value

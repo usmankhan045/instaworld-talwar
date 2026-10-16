@@ -10,6 +10,7 @@ import {
   stringifyForInstaWorld,
   toInstaWorldPdfSafeText,
 } from "../app/lib/instaworld.server.ts";
+import {PAKISTAN_CITY_ALIASES} from "../app/lib/pakistan-cities.ts";
 
 test("escapes Urdu as ASCII JSON while preserving the original value", () => {
   const original = { consignee: { address: "وفاقی دارالحکومت اسلام آباد" } };
@@ -47,6 +48,21 @@ test("books one clean English address without duplicate components", () => {
 test("corrects small Pakistani city spelling mistakes", () => {
   assert.equal(normaliseCity("salkot"), "SIALKOT");
   assert.equal(normaliseCity("Islamabd"), "ISLAMABAD");
+});
+
+test("converts Urdu city names to InstaWorld's canonical English names", () => {
+  assert.equal(normaliseCity("بورے والا"), "BUREWALA");
+  assert.equal(normaliseCity("بوریوالا"), "BUREWALA");
+  assert.equal(normaliseCity("اسلام آباد"), "ISLAMABAD");
+  assert.equal(normaliseCity("فیصل آباد"), "FAISALABAD");
+});
+
+test("covers every Urdu city alias in the shared Pakistan city catalog", () => {
+  const entries = Object.entries(PAKISTAN_CITY_ALIASES);
+  assert.ok(entries.length >= 140);
+  for (const [city, aliases] of entries) {
+    for (const alias of aliases) assert.equal(normaliseCity(alias), city.toUpperCase(), alias);
+  }
 });
 
 test("removes Pakistani province names and abbreviations from city input", () => {

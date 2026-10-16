@@ -310,3 +310,26 @@ test("matches an Urdu provider city to the English Shopify city", () => {
 
   assert.equal(result.ok, true);
 });
+
+test("matches an Urdu Shopify city to its canonical city", () => {
+  const result = validateGeocodeCandidate(
+    {
+      display_name: "Burewala, Vehari District, Pakistan",
+      address: {
+        city: "بوریوالا",
+        state: "Punjab",
+        country: "Pakistan",
+        country_code: "pk",
+      },
+    },
+    {
+      address1: "House 12, Main Bazaar",
+      city: "بورے والا",
+      province: "Punjab",
+      country: "Pakistan",
+      countryCode: "PK",
+    },
+  );
+
+  assert.equal(result.ok, true);
+});

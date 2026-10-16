@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import {PAKISTAN_CITY_URDU_TO_ENGLISH} from "./pakistan-cities.ts";
+
 export type InstaWorldShipment = {
   trackingNumber: string;
   raw: unknown;
@@ -132,6 +134,53 @@ export function normaliseCity(raw: string | null | undefined): string {
 
   // Common alternate spellings / abbreviations seen in Pakistani Shopify stores
   const aliases: Record<string, string> = {
+    ...PAKISTAN_CITY_URDU_TO_ENGLISH,
+    // Urdu city names are accepted by Shopify checkout and can arrive here
+    // when the customer types the address in Urdu. Keep the courier payload
+    // in its canonical English form.
+    "اسلام آباد": "ISLAMABAD",
+    "اسلاماباد": "ISLAMABAD",
+    "راولپنڈی": "RAWALPINDI",
+    "راول پنڈی": "RAWALPINDI",
+    "لاہور": "LAHORE",
+    "کراچی": "KARACHI",
+    "پشاور": "PESHAWAR",
+    "فیصل آباد": "FAISALABAD",
+    "فیصلاباد": "FAISALABAD",
+    "ملتان": "MULTAN",
+    "گوجرانوالہ": "GUJRANWALA",
+    "گوجرانواالہ": "GUJRANWALA",
+    "گجرات": "GUJRAT",
+    "سیالکوٹ": "SIALKOT",
+    "بہاولپور": "BAHAWALPUR",
+    "ساہیوال": "SAHIWAL",
+    "سرگودھا": "SARGODHA",
+    "شیخوپورہ": "SHEIKHUPURA",
+    "قصور": "KASUR",
+    "اوکاڑہ": "OKARA",
+    "نارووال": "NAROWAL",
+    "حافظ آباد": "HAFIZABAD",
+    "چنیوٹ": "CHINIOT",
+    "جھنگ": "JHANG",
+    "وہاڑی": "VEHARI",
+    "خانیوال": "KHANEWAL",
+    "مظفرگڑھ": "MUZAFFARGARH",
+    "ڈیرہ غازی خان": "DERA GHAZI KHAN",
+    "ڈیرہ اسماعیل خان": "DERA ISMAIL KHAN",
+    "رحیم یار خان": "RAHIM YAR KHAN",
+    "بوریوالا": "BUREWALA",
+    "بورے والا": "BUREWALA",
+    "مردان": "MARDAN",
+    "صوابی": "SWABI",
+    "نوشہرہ": "NOWSHERA",
+    "چارسدہ": "CHARSADDA",
+    "کوہاٹ": "KOHAT",
+    "ایبٹ آباد": "ABBOTTABAD",
+    "مانسہرہ": "MANSEHRA",
+    "سکھر": "SUKKUR",
+    "حیدرآباد": "HYDERABAD",
+    "لاڑکانہ": "LARKANA",
+    "کوئٹہ": "QUETTA",
     "RAHIMYAR KHAN": "RAHIM YAR KHAN",
     "RAHIM YAR KHAN": "RAHIM YAR KHAN",
     "RYK": "RAHIM YAR KHAN",
@@ -207,6 +256,7 @@ export function normaliseCity(raw: string | null | undefined): string {
     "MUZAFFARABAD": "MUZAFFARABAD",
     "MIRPUR": "MIRPUR",
     "KOTLI": "KOTLI",
+    "BUREWALA": "BUREWALA",
   };
 
   const aliased = aliases[city];
