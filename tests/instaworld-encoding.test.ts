@@ -4,6 +4,7 @@ import {
   allocateShipmentWeight,
   buildInstaWorldAddress,
   FIXED_SHIPMENT_WEIGHT_KG,
+  isCancelledShipment,
   normaliseCity,
   replaceCityInAddress,
   stringifyForInstaWorld,
@@ -59,4 +60,10 @@ test("corrects the city spelling inside the complete address", () => {
     ]),
     "House 13, Sector G-8, ISLAMABAD, Pakistan",
   );
+});
+
+test("recognizes canceled InstaWorld shipments so they can be booked again", () => {
+  assert.equal(isCancelledShipment({trackingNumber: "123", raw: {status: "cancelled"}}), true);
+  assert.equal(isCancelledShipment({trackingNumber: "124", raw: {public_status: "CANCELED BY MERCHANT"}}), true);
+  assert.equal(isCancelledShipment({trackingNumber: "125", raw: {status: "BOOKED"}}), false);
 });

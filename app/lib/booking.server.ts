@@ -232,7 +232,7 @@ export async function bookCombinedOrders(
 
   try {
     const existing = await findShipmentByReference(refNo, shop);
-    if (existing) {
+    if (existing && !isCancelledShipment(existing)) {
       return await finalizeSuccessfulBooking(shop, attempt.id, existing.trackingNumber, orders, admin);
     }
 
@@ -312,7 +312,7 @@ export async function recoverBookingAttempt(shop: string, attemptId: string) {
     orderNumber: reservation.shopifyOrderId,
   }));
   const existing = await findShipmentByReference(attempt.shipment.refNo, shop);
-  if (existing) {
+  if (existing && !isCancelledShipment(existing)) {
     return finalizeSuccessfulBooking(shop, attemptId, existing.trackingNumber, sourceOrders);
   }
 
