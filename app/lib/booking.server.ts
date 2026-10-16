@@ -49,6 +49,47 @@ function splitName(full: string): {first_name: string; last_name?: string} {
   return {first_name, last_name};
 }
 
+async function releaseReservationsForCancelledShipments(shop: string, orderIds: string[]) {
+  const activeReservations = await prisma.orderReservation.findMany({
+    where: {
+      shop,
+      shopifyOrderId: {in: orderIds},
+      state: "active",
+      leaseExpiresAt: {gt: new Date()},
+    },
+    select: {attemptId: true},
+  });
+  if (activeReservations.length === 0) return;
+
+  const attemptIds = [...new Set(activeReservations.map((reservation) => reservation.attemptId))];
+  const attempts = await prisma.bookingAttempt.findMany({
+    where: {shop, id: {in: attemptIds}},
+    select: {
+      id: true,
+      shipment: {select: {refNo: true, status: true, instaworldStatus: true}},
+    },
+  });
+
+  const cancelledAttemptIds = new Set<string>();
+  for (const attempt of attempts) {
+    const localStatus = `${attempt.shipment.status} ${attempt.shipment.instaworldStatus || ""}`;
+    if (localStatus.toUpperCase().includes("CANCEL")) {
+      cancelledAttemptIds.add(attempt.id);
+      continue;
+    }
+
+    const remote = await findShipmentByReference(attempt.shipment.refNo, shop);
+    if (remote && isCancelledShipment(remote)) cancelledAttemptIds.add(attempt.id);
+  }
+
+  if (cancelledAttemptIds.size > 0) {
+    await prisma.orderReservation.updateMany({
+      where: {shop, attemptId: {in: [...cancelledAttemptIds]}, state: "active"},
+      data: {state: "released", releasedAt: new Date()},
+    });
+  }
+}
+
 function buildRequest(
   combined: ReturnType<typeof combineOrders>,
   orders: ShopifyOrder[],
@@ -139,6 +180,10 @@ export async function bookCombinedOrders(
       throw new Error(`Order #${link.shopifyOrderNumber} is already booked in InstaWorld.`);
     }
   }
+  // A canceled InstaWorld shipment can leave its local reservation active
+  // until the normal lease expires. Release that reservation before checking
+  // for concurrent attempts so the order can be booked again immediately.
+  await releaseReservationsForCancelledShipments(shop, combined.orderIds);
   const attemptId = randomUUID();
   const idempotencyKey = randomUUID();
   // Use Shopify order number(s) as the human-readable refNo (e.g. "1006" or "1006+1007")
