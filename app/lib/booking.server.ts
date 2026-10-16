@@ -278,8 +278,18 @@ export async function bookCombinedOrders(
 
     try {
       for (const order of orders) {
-        await tx.orderReservation.create({
-          data: {
+        // An order can be booked again after a canceled shipment. Reuse its
+        // existing released/consumed reservation row because the database
+        // intentionally has one reservation row per shop + order.
+        await tx.orderReservation.upsert({
+          where: {orderReservation_shop_shopifyOrderId_key: {shop, shopifyOrderId: order.id}},
+          update: {
+            attemptId: bookingAttempt.id,
+            state: "active",
+            leaseExpiresAt,
+            releasedAt: null,
+          },
+          create: {
             shop,
             shopifyOrderId: order.id,
             attemptId: bookingAttempt.id,
