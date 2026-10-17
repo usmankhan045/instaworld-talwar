@@ -1,7 +1,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import {PRODUCT_COLORS_BY_HANDLE} from "./product-colors.server";
+import {PRODUCT_COLORS_BY_HANDLE} from "./product-colors.server.ts";
 
 type ShopifyAdminGraphql = {
   graphql: (
@@ -114,6 +114,7 @@ const ORDER_FIELDS = `
         quantity
         product {
           handle
+          title
           color: metafield(namespace: "custom", key: "color") {
             value
           }
@@ -147,6 +148,29 @@ function assertGraphqlSuccess<T>(result: GraphqlResponse<T>): T {
   }
 
   return result.data;
+}
+
+function hamtaaLineItem(item: any): {title: string; color: string | null} | null {
+  const handle = String(item.product?.handle ?? "");
+  const match = /^(handmade|slub)-hamtaa-cloth(?:-|$)/.exec(handle);
+  if (!match) return null;
+
+  const title = match[1] === "slub" ? "Slub Hamtaa Cloth" : "Handmade Hamtaa Cloth";
+  const originalTitle = String(item.title ?? "").trim();
+  const currentTitle = String(item.product?.title ?? "").trim();
+  const colorFromTitle = (value: string) => {
+    if (!value || value.toLowerCase() === title.toLowerCase()) return null;
+    const suffix = value.match(new RegExp(`^${title}\\s*[-–—:]\\s*(.+)$`, "i"));
+    return suffix?.[1]?.trim() || (!/hamtaa\s+cloth/i.test(value) ? value : null);
+  };
+
+  return {
+    title,
+    color: String(item.product?.color?.value ?? "").trim()
+      || PRODUCT_COLORS_BY_HANDLE[handle]
+      || colorFromTitle(originalTitle)
+      || colorFromTitle(currentTitle),
+  };
 }
 
 function parseOrder(node: any): ShopifyOrder {
@@ -190,22 +214,22 @@ function parseOrder(node: any): ShopifyOrder {
         }
       : null,
     courier: courierValue === "TCS" || courierValue === "POSTEX" ? courierValue : null,
-    lineItems: (node.lineItems?.edges ?? []).map(
-      ({ node: item }: any) => ({
+    lineItems: (node.lineItems?.edges ?? []).map(({ node: item }: any) => {
+      const hamtaa = hamtaaLineItem(item);
+      return {
         id: String(item.id),
-        title: String(item.title || "Product"),
+        title: hamtaa?.title ?? String(item.title || "Product"),
         sku: item.sku ?? null,
         quantity: Number(item.quantity),
-        color:
-          (item.product?.color?.value
-            ? String(item.product.color.value)
-            : item.product?.handle
-              ? PRODUCT_COLORS_BY_HANDLE[String(item.product.handle)]
-              : null) ?? null,
+        color: hamtaa?.color ?? (item.product?.color?.value
+          ? String(item.product.color.value)
+          : item.product?.handle
+            ? PRODUCT_COLORS_BY_HANDLE[String(item.product.handle)]
+            : null) ?? null,
         unitPrice: shopMoney(item.originalUnitPriceSet),
         totalPrice: shopMoney(item.discountedTotalSet),
-      }),
-    ),
+      };
+    }),
   };
 }
 
