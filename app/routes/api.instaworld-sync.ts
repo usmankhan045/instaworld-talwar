@@ -23,8 +23,7 @@ import prisma from "../db.server";
 import {unauthenticated} from "../shopify.server";
 import {
   createShopifyFulfillment,
-  updateShopifyFulfillmentTracking,
-  completeShopifyFulfillment,
+  createShopifyFulfillmentEvent,
   cancelShopifyFulfillment,
   instaworldStatusToShopify,
 } from "../lib/shopify-fulfillment.server";
@@ -163,16 +162,18 @@ export async function loader({request}: LoaderFunctionArgs) {
           // Skip if status hasn't changed
           if (dbShipment.instaworldStatus === newStatus) continue;
 
-          const {shipmentStatus, shouldComplete, shouldCancel} =
+          const {fulfillmentEventStatus, shouldMarkDelivered, shouldCancel} =
             instaworldStatusToShopify(newStatus);
 
           try {
             const shopifyOrderIds = dbShipment.orders.map((o) => o.shopifyOrderId);
 
-            if (!dbShipment.shopifyFulfillmentId) {
+            let fulfillmentId = dbShipment.shopifyFulfillmentId;
+
+            if (!fulfillmentId) {
               // No fulfillment yet — create one now (booking may have happened before this feature)
               if (shopifyOrderIds.length > 0 && dbShipment.trackingNumber) {
-                const fulfillmentId = await createShopifyFulfillment(
+                fulfillmentId = await createShopifyFulfillment(
                   admin,
                   shopifyOrderIds,
                   dbShipment.trackingNumber,
@@ -180,26 +181,26 @@ export async function loader({request}: LoaderFunctionArgs) {
                 if (fulfillmentId) {
                   await prisma.shipment.update({
                     where: {id: dbShipment.id},
-                    data: {shopifyFulfillmentId: fulfillmentId, instaworldStatus: newStatus, lastSyncedAt: new Date()},
+                    data: {shopifyFulfillmentId: fulfillmentId},
                   });
-                  totalUpdated++;
                 }
               }
-              continue;
             }
 
-            const fulfillmentId = dbShipment.shopifyFulfillmentId;
+            if (!fulfillmentId) {
+              throw new Error("Could not create or find a Shopify fulfillment");
+            }
 
             if (shouldCancel) {
-              await cancelShopifyFulfillment(admin, fulfillmentId);
-            } else if (shouldComplete) {
-              await completeShopifyFulfillment(admin, fulfillmentId);
-            } else if (shipmentStatus) {
-              await updateShopifyFulfillmentTracking(
+              const cancelled = await cancelShopifyFulfillment(admin, fulfillmentId);
+              if (!cancelled) throw new Error("Shopify rejected fulfillment cancellation");
+            } else if (fulfillmentEventStatus) {
+              const eventCreated = await createShopifyFulfillmentEvent(
                 admin,
                 fulfillmentId,
-                trackingNumber,
+                fulfillmentEventStatus,
               );
+              if (!eventCreated) throw new Error(`Shopify rejected ${fulfillmentEventStatus} fulfillment event`);
             }
 
             await prisma.shipment.update({
@@ -207,7 +208,7 @@ export async function loader({request}: LoaderFunctionArgs) {
               data: {
                 instaworldStatus: newStatus,
                 lastSyncedAt: new Date(),
-                ...(shouldComplete ? {status: "delivered"} : {}),
+                ...(shouldMarkDelivered ? {status: "delivered"} : {}),
                 ...(shouldCancel ? {status: "cancelled"} : {}),
               },
             });

@@ -6,16 +6,15 @@
  * Shopify fulfillment flow:
  *  1. On booking: get the order's fulfillment orders → create a fulfillment
  *     with the InstaWorld tracking number → store the fulfillment GID.
- *  2. On sync: update the fulfillment's shipmentStatus as InstaWorld reports
- *     progress, and call fulfillmentComplete when DELIVERED.
+ *  2. On sync: create fulfillment events as InstaWorld reports progress.
  */
 
 // ---------------------------------------------------------------------------
-// InstaWorld status → Shopify shipmentStatus mapping
+// InstaWorld status → Shopify fulfillment event mapping
 // ---------------------------------------------------------------------------
 
-/** Shopify FulfillmentDisplayStatus / shipmentStatus values */
-export type ShopifyShipmentStatus =
+/** Shopify FulfillmentEventStatus values used by fulfillmentEventCreate. */
+export type ShopifyFulfillmentEventStatus =
   | "LABEL_PRINTED"
   | "LABEL_PURCHASED"
   | "CONFIRMED"
@@ -24,41 +23,43 @@ export type ShopifyShipmentStatus =
   | "DELIVERED"
   | "ATTEMPTED_DELIVERY"
   | "READY_FOR_PICKUP"
-  | "PICKED_UP"
-  | "FAILURE"
-  | "RETURN_TO_SENDER";
+  | "CARRIER_PICKED_UP"
+  | "DELAYED"
+  | "FAILURE";
 
 export function instaworldStatusToShopify(instaworldStatus: string): {
-  shipmentStatus: ShopifyShipmentStatus | null;
-  shouldComplete: boolean;  // call fulfillmentComplete (DELIVERED)
+  fulfillmentEventStatus: ShopifyFulfillmentEventStatus | null;
+  shouldMarkDelivered: boolean;
   shouldCancel: boolean;    // call fulfillmentCancel (RTO returned / cancelled)
 } {
   switch (instaworldStatus.toUpperCase()) {
     case "BOOKED":
     case "BOOKING_IN_PROCESS":
-      return {shipmentStatus: "LABEL_PRINTED", shouldComplete: false, shouldCancel: false};
+      return {fulfillmentEventStatus: "LABEL_PRINTED", shouldMarkDelivered: false, shouldCancel: false};
     case "PICKED_UP":
-      return {shipmentStatus: "PICKED_UP", shouldComplete: false, shouldCancel: false};
+      return {fulfillmentEventStatus: "CARRIER_PICKED_UP", shouldMarkDelivered: false, shouldCancel: false};
     case "IN_TRANSIT":
-      return {shipmentStatus: "IN_TRANSIT", shouldComplete: false, shouldCancel: false};
+      return {fulfillmentEventStatus: "IN_TRANSIT", shouldMarkDelivered: false, shouldCancel: false};
     case "OUT_FOR_DELIVERY":
-      return {shipmentStatus: "OUT_FOR_DELIVERY", shouldComplete: false, shouldCancel: false};
+      return {fulfillmentEventStatus: "OUT_FOR_DELIVERY", shouldMarkDelivered: false, shouldCancel: false};
     case "DELIVERED":
-      return {shipmentStatus: "DELIVERED", shouldComplete: true, shouldCancel: false};
+      return {fulfillmentEventStatus: "DELIVERED", shouldMarkDelivered: true, shouldCancel: false};
     case "DELIVERY_ATTEMPT_FAILED":
     case "ACTION_REQUIRED":
     case "ON_HOLD":
-      return {shipmentStatus: "ATTEMPTED_DELIVERY", shouldComplete: false, shouldCancel: false};
+      return {fulfillmentEventStatus: "ATTEMPTED_DELIVERY", shouldMarkDelivered: false, shouldCancel: false};
     case "RTO_INITIATED":
     case "RTO_IN_TRANSIT":
     case "RTO_RECEIVED_AT_HUB":
-      return {shipmentStatus: "RETURN_TO_SENDER", shouldComplete: false, shouldCancel: false};
+      // Shopify has no return-to-sender fulfillment event. Keep the courier
+      // status locally until the return is final and the fulfillment can be cancelled.
+      return {fulfillmentEventStatus: null, shouldMarkDelivered: false, shouldCancel: false};
     case "RTO_RETURNED_TO_SHIPPER":
-      return {shipmentStatus: "RETURN_TO_SENDER", shouldComplete: false, shouldCancel: true};
+      return {fulfillmentEventStatus: null, shouldMarkDelivered: false, shouldCancel: true};
     case "CANCELLED":
-      return {shipmentStatus: null, shouldComplete: false, shouldCancel: true};
+      return {fulfillmentEventStatus: null, shouldMarkDelivered: false, shouldCancel: true};
     default:
-      return {shipmentStatus: null, shouldComplete: false, shouldCancel: false};
+      return {fulfillmentEventStatus: null, shouldMarkDelivered: false, shouldCancel: false};
   }
 }
 
@@ -161,71 +162,31 @@ export async function createShopifyFulfillment(
 }
 
 /**
- * Update the tracking shipment status on an existing Shopify fulfillment.
- * Used for PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY etc.
+ * Record shipment progress on a fulfillment. DELIVERED is an event status;
+ * Shopify doesn't expose a fulfillmentComplete mutation.
  */
-export async function updateShopifyFulfillmentTracking(
+export async function createShopifyFulfillmentEvent(
   admin: any,
   fulfillmentId: string,
-  trackingNumber: string,
+  status: ShopifyFulfillmentEventStatus,
 ): Promise<boolean> {
   const data = await gql(
     admin,
-    `mutation FulfillmentTrackingInfoUpdate($fulfillmentId: ID!, $trackingInfoInput: FulfillmentTrackingInput!, $notifyCustomer: Boolean) {
-      fulfillmentTrackingInfoUpdate(fulfillmentId: $fulfillmentId, trackingInfoInput: $trackingInfoInput, notifyCustomer: $notifyCustomer) {
-        fulfillment {
-          id
-          status
-        }
-        userErrors {
-          field
-          message
-        }
-      }
-    }`,
-    {
-      fulfillmentId,
-      trackingInfoInput: {
-        number: trackingNumber,
-        url: `https://one-be.instaworld.pk/tracking/${trackingNumber}`,
-        company: "InstaWorld",
-      },
-      notifyCustomer: false,
-    },
-  );
-
-  const errors = data?.data?.fulfillmentTrackingInfoUpdate?.userErrors ?? [];
-  if (errors.length > 0) {
-    console.error("[shopify-fulfillment] updateTracking userErrors:", errors);
-    return false;
-  }
-  return true;
-}
-
-/**
- * Mark a fulfillment as successfully completed (order DELIVERED).
- */
-export async function completeShopifyFulfillment(
-  admin: any,
-  fulfillmentId: string,
-): Promise<boolean> {
-  const data = await gql(
-    admin,
-    `mutation FulfillmentComplete($id: ID!) {
-      fulfillmentComplete(id: $id) {
-        fulfillment { id status }
+    `mutation FulfillmentEventCreate($fulfillmentEvent: FulfillmentEventInput!) {
+      fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {
+        fulfillmentEvent { id status }
         userErrors { field message }
       }
     }`,
-    {id: fulfillmentId},
+    {fulfillmentEvent: {fulfillmentId, status}},
   );
 
-  const errors = data?.data?.fulfillmentComplete?.userErrors ?? [];
+  const errors = data?.data?.fulfillmentEventCreate?.userErrors ?? [];
   if (errors.length > 0) {
-    console.error("[shopify-fulfillment] complete userErrors:", errors);
+    console.error("[shopify-fulfillment] createEvent userErrors:", errors);
     return false;
   }
-  return true;
+  return Boolean(data?.data?.fulfillmentEventCreate?.fulfillmentEvent?.id);
 }
 
 /**
