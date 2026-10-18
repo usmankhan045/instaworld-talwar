@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1200" fill="none" aria-hidden="true">
+  <defs>
+    <pattern id="pencil" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(-24)">
+      <path d="M0 0V6M3 0V6" stroke="#705a45" stroke-width=".32" opacity=".22"/>
+    </pattern>
+  </defs>
+  <g stroke="#705a45" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Seamless sugarcane spine: the stalk continues across every repeated tile. -->
+    <g opacity=".48">
+      <path stroke-width="1.45" d="M80-20C93 155 78 306 92 470c13 168-12 322 4 490 7 75 5 158-2 260M105-20c12 178-3 328 11 491 14 166-10 324 5 489 7 78 5 161-2 260"/>
+      <path stroke-width=".75" d="M83 116c8 7 20 8 28 1M85 130c8 7 19 8 27 1M91 332c8 7 20 8 28 1M92 346c8 7 20 8 28 1M92 566c9 7 21 8 29 1M93 580c9 7 21 8 29 1M94 807c9 7 21 8 29 1M95 821c9 7 21 8 29 1M95 1042c9 7 21 8 29 1M95 1056c9 7 21 8 29 1"/>
+      <path stroke-width="1.05" d="M91 153C25 99-42 89-101 99c72 7 133 29 192 69M91 177c78-49 151-52 235-28-91 1-164 15-235 44M94 385C21 330-45 326-104 344c79 1 142 20 198 57m1 18c75-42 146-40 222-10-83-7-149 1-222 26M97 625C28 574-38 570-98 587c74 3 136 20 195 54m1 19c80-43 155-39 230-5-86-10-157-2-230 22M99 862C30 814-34 810-93 827c72 2 134 19 192 51m1 19c76-40 148-34 219 0-82-12-147-7-219 16M97 1094c-69-45-131-48-188-31 69 1 128 17 188 47m1 18c76-36 145-28 211 5-78-13-144-10-211 12"/>
+      <path stroke-width=".42" d="M84 157C31 121-19 108-78 106m172 79c66-29 130-35 204-30M88 391c-55-36-108-45-165-40m179 76c60-24 125-28 193-13M91 632c-55-34-103-43-162-39m171 76c66-25 132-25 201-7M92 870c-52-31-102-39-157-36m165 72c63-22 124-20 190-3M92 1101c-51-27-99-34-153-31m161 67c60-18 116-14 181 2"/>
+    </g>
+    <!-- Harvested cane at the upper right. -->
+    <g opacity=".48" transform="translate(1415 82) scale(.62)">
+      <path stroke-width="1.1" d="M21-102c-3 70 2 134 0 202-3 82 2 149 0 227"/>
+      <path stroke-width=".8" d="M19 35c-54-35-99-36-141-21 53 1 99 12 141 34m3 72c58-31 112-27 164-4-61-8-110-3-164 17M20 207c-49-29-93-28-134-13 50-1 93 8 134 26"/>
+      <path stroke-width=".45" d="M15 41c-43-23-82-27-119-22m130 106c47-20 92-20 139-7M14 213c-37-18-75-21-108-14"/>
+    </g>
+    <!-- Gur pieces, kept at the page edge and away from reading zones. -->
+    <g opacity=".46" transform="translate(1412 430) scale(.58)">
+      <path stroke-width="1.05" fill="url(#pencil)" d="m10 85 37-55 68-12 57 29 9 56-52 39-79-4Z"/>
+      <path stroke-width=".55" d="m25 83 42-43 39-8m-70 65 49-48 66 4m-94 69 51-50 55 20m-78-59 12 30 38 20m-77 37 26-33 56 27"/>
+      <path stroke-width="1" fill="url(#pencil)" d="m187 92 26-39 49-4 37 35-18 45-59 13-40-22Z"/>
+      <path stroke-width=".5" d="m199 91 39-30 43 25m-74 21 53-45m-36 66 56-43M-8 164c88 14 237 14 330-2"/>
+    </g>
+    <!-- The story resolves in a steaming cup near the lower right. -->
+    <g opacity=".52" transform="translate(1405 780) scale(.58)">
+      <path stroke-width="1.25" d="M2 92c4 74 24 111 67 126 42 15 126 14 167-8 30-16 45-57 48-118M-8 91c39-28 247-31 302 0-33 34-268 35-302 0Z"/>
+      <path stroke-width=".65" d="M8 100c51 20 216 20 272 0M23 130c61 17 176 18 240 1m-220 30c61 15 142 15 199 1m-176 28c47 10 103 9 145 0"/>
+      <path fill="url(#pencil)" stroke-width=".8" d="M8 108c10 58 27 89 66 101 41 13 119 11 156-9 25-14 39-47 49-91-61 23-215 23-271-1Z"/>
+      <path stroke-width=".8" d="M292 101c61-8 69 51 29 74-20 12-39 5-50-5m22-55c34-4 43 27 24 40-12 9-23 3-31-3M76 64c-13-27 13-34 1-62m43 60c-15-29 17-34 3-66m43 65c-13-27 15-35 3-64"/>
+      <path stroke-width=".55" d="M-31 239c91 14 272 15 365-1"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,194 @@
+<article class="talwar-story-page">
+  <section class="talwar-story-page__hero" aria-labelledby="talwar-story-title">
+    <div class="talwar-story-page__hero-media">
+      {% if section.settings.hero_image != blank %}
+        {{ section.settings.hero_image | image_url: width: 1600 | image_tag: widths: '600, 900, 1200, 1600', sizes: '(min-width: 900px) 54vw, 100vw', loading: 'eager', fetchpriority: 'high', alt: section.settings.hero_image.alt }}
+      {% else %}
+        <img src="{{ 'talwar-dry-fruit-snack-zafran.jpg' | asset_url }}" alt="Dry fruit gur beside saffron green tea" width="1536" height="1024" fetchpriority="high">
+      {% endif %}
+    </div>
+    <div class="talwar-story-page__hero-panel">
+      <div class="talwar-story-page__topline"><span aria-hidden="true">✳</span><p class="talwar-story-page__eyebrow">{{ section.settings.kicker | escape }}</p></div>
+      <h1 id="talwar-story-title">{{ section.settings.heading | escape }}</h1>
+      <p class="talwar-story-page__lede">{{ section.settings.lede | escape }}</p>
+      <p class="talwar-story-page__signature">{{ section.settings.signature | escape }}</p>
+    </div>
+  </section>
+
+  <section class="talwar-story-page__belief" aria-labelledby="talwar-belief-title">
+    <p class="talwar-story-page__eyebrow">{{ section.settings.belief_kicker | escape }}</p>
+    <div class="talwar-story-page__belief-grid">
+      <h2 id="talwar-belief-title">{{ section.settings.belief_heading | escape }}</h2>
+      <div class="talwar-story-page__belief-copy">
+        <p>{{ section.settings.belief_body_one | escape }}</p>
+        <p>{{ section.settings.belief_body_two | escape }}</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="talwar-story-page__promise" aria-labelledby="talwar-promise-title">
+    <div class="talwar-story-page__promise-heading">
+      <p class="talwar-story-page__eyebrow">{{ section.settings.promise_kicker | escape }}</p>
+      <h2 id="talwar-promise-title">{{ section.settings.promise_heading | escape }}</h2>
+    </div>
+    <div class="talwar-story-page__principles">
+      <article>
+        <span>01</span>
+        <h3>{{ section.settings.principle_one_heading | escape }}</h3>
+        <p>{{ section.settings.principle_one_body | escape }}</p>
+      </article>
+      <article>
+        <span>02</span>
+        <h3>{{ section.settings.principle_two_heading | escape }}</h3>
+        <p>{{ section.settings.principle_two_body | escape }}</p>
+      </article>
+      <article>
+        <span>03</span>
+        <h3>{{ section.settings.principle_three_heading | escape }}</h3>
+        <p>{{ section.settings.principle_three_body | escape }}</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="talwar-story-page__chapter" aria-labelledby="talwar-chapter-title">
+    <div class="talwar-story-page__chapter-media">
+      <img src="{{ 'talwar-dry-fruit-philosophy.jpg' | asset_url }}" alt="Talwar dry fruit gur made with nuts, seeds and coconut" width="1254" height="1254" loading="lazy">
+      <span>{{ section.settings.chapter_image_label | escape }}</span>
+    </div>
+    <div class="talwar-story-page__chapter-copy">
+      <p class="talwar-story-page__eyebrow">{{ section.settings.chapter_kicker | escape }}</p>
+      <h2 id="talwar-chapter-title">{{ section.settings.chapter_heading | escape }}</h2>
+      <p>{{ section.settings.chapter_body_one | escape }}</p>
+      <p>{{ section.settings.chapter_body_two | escape }}</p>
+      <a href="{{ routes.collections_url }}/jaggery">{{ section.settings.button_label | escape }} <span aria-hidden="true">↗</span></a>
+    </div>
+  </section>
+
+  <section class="talwar-story-page__close" aria-labelledby="talwar-close-title">
+    <p class="talwar-story-page__eyebrow">{{ section.settings.closing_kicker | escape }}</p>
+    <h2 id="talwar-close-title">{{ section.settings.closing_heading | escape }}</h2>
+    <p>{{ section.settings.closing_body | escape }}</p>
+  </section>
+</article>
+
+{% stylesheet %}
+  .talwar-story-page { padding-bottom:24px; overflow:hidden; background:#f8f3e9; color:#3f1d12; }
+  .talwar-story-page * { box-sizing:border-box; }
+  .talwar-story-page p, .talwar-story-page h1, .talwar-story-page h2, .talwar-story-page h3 { margin:0; }
+  .talwar-story-page h1, .talwar-story-page h2, .talwar-story-page h3 { font-family:var(--font-heading--family),Georgia,serif; font-weight:400; letter-spacing:-.05em; }
+  .talwar-story-page__eyebrow { font:700 11px/1.3 var(--font-subheading--family),Arial,sans-serif; letter-spacing:.19em; text-transform:uppercase; }
+  .talwar-story-page__hero { position:relative; min-height:min(820px,calc(100svh - 84px)); overflow:hidden; isolation:isolate; background:#4a2b1f; }
+  .talwar-story-page__hero-media { position:absolute; inset:0; z-index:-2; }
+  .talwar-story-page__hero-media::after { content:''; position:absolute; inset:0; background:linear-gradient(90deg,rgba(45,22,14,.9) 0%,rgba(45,22,14,.78) 24%,rgba(45,22,14,.5) 39%,rgba(45,22,14,.08) 56%,transparent 68%),linear-gradient(0deg,rgba(32,15,9,.15),transparent 38%); }
+  .talwar-story-page__hero-media img { display:block; width:100%; height:100%; object-fit:cover; object-position:center 46%; }
+  .talwar-story-page__hero-panel { display:flex; flex-direction:column; justify-content:center; align-items:flex-start; width:min(43%,690px); min-height:inherit; padding-block:clamp(54px,5.5vw,100px); padding-left:clamp(54px,5.2vw,100px); padding-right:clamp(20px,2vw,38px); color:#fffaf0; text-shadow:0 2px 22px rgba(32,15,9,.18); }
+  .talwar-story-page__topline { display:flex; align-items:center; gap:14px; margin-bottom:clamp(25px,2.7vw,40px); }
+  .talwar-story-page__topline > span { display:grid; place-items:center; width:40px; height:40px; flex:0 0 auto; border:1px solid rgba(255,250,240,.58); border-radius:50%; color:#f2c67f; font-size:23px; }
+  .talwar-story-page h1 { max-width:8.3ch; font-size:clamp(3.9rem,5vw,6.3rem); line-height:.92; overflow-wrap:normal; word-break:normal; hyphens:none; text-wrap:balance; }
+  .talwar-story-page__lede { max-width:34ch; margin-top:clamp(24px,2.5vw,34px) !important; font-size:clamp(1.02rem,1.08vw,1.16rem); line-height:1.6; text-shadow:0 1px 16px rgba(32,15,9,.36); }
+  .talwar-story-page__signature { width:100%; max-width:44ch; margin-top:27px !important; padding-top:15px; border-top:1px solid rgba(255,250,240,.38); font:700 9px/1.4 var(--font-subheading--family),Arial,sans-serif; letter-spacing:.14em; text-transform:uppercase; }
+  .talwar-story-page__belief { width:min(88vw,1320px); margin:0 auto; padding:clamp(80px,10vw,160px) 0; }
+  .talwar-story-page__belief-grid { display:grid; grid-template-columns:minmax(0,1.08fr) minmax(300px,.72fr); gap:clamp(45px,8vw,135px); align-items:start; margin-top:32px; }
+  .talwar-story-page__belief h2 { max-width:12ch; font-size:clamp(3.8rem,6.5vw,7.8rem); line-height:.94; }
+  .talwar-story-page__belief-copy { display:grid; gap:24px; padding-top:12px; }
+  .talwar-story-page__belief-copy p { font-size:clamp(1.05rem,1.3vw,1.28rem); line-height:1.68; }
+  .talwar-story-page__promise { display:grid; grid-template-columns:minmax(280px,.72fr) minmax(0,1.28fr); gap:clamp(45px,7vw,120px); width:min(94vw,1500px); margin:0 auto; padding:clamp(42px,5vw,76px); overflow:hidden; border-radius:28px; background:linear-gradient(135deg,#efd7a6 0%,#e2bd75 100%); position:relative; isolation:isolate; box-shadow:0 24px 60px rgba(63,29,18,.09); }
+  .talwar-story-page__promise::before { content:'✳'; position:absolute; left:clamp(34px,4.5vw,72px); bottom:clamp(35px,5vw,78px); display:grid; place-items:center; width:74px; aspect-ratio:1; border:1px solid rgba(63,29,18,.4); border-radius:50%; color:#8a5235; font-size:38px; }
+  .talwar-story-page__promise::after { content:''; position:absolute; inset:-8% 42% -8% -8%; z-index:-1; opacity:.12; transform:rotate(-5deg); background:var(--talwar-story-art-url) center / contain no-repeat; }
+  .talwar-story-page__promise-heading { display:flex; flex-direction:column; align-items:flex-start; min-width:0; padding:10px 0 115px; }
+  .talwar-story-page__promise-heading .talwar-story-page__eyebrow { display:inline-flex; padding:9px 13px; border:1px solid rgba(63,29,18,.28); border-radius:999px; background:rgba(248,243,233,.34); }
+  .talwar-story-page__promise-heading h2 { max-width:9.5ch; margin-top:clamp(26px,4vw,56px); font-size:clamp(3.6rem,4.8vw,5.8rem); line-height:.94; }
+  .talwar-story-page__principles { display:grid; gap:13px; min-width:0; }
+  .talwar-story-page__principles article { display:grid; grid-template-columns:52px minmax(150px,.66fr) minmax(190px,1fr); gap:clamp(15px,2.5vw,38px); align-items:center; min-width:0; padding:clamp(24px,2.3vw,34px); border:1px solid rgba(63,29,18,.13); border-radius:18px; background:rgba(255,250,240,.68); box-shadow:0 9px 25px rgba(63,29,18,.06); }
+  .talwar-story-page__principles article:nth-child(2) { color:#fffaf0; background:#4a2115; border-color:#4a2115; transform:translateX(-18px); box-shadow:0 16px 32px rgba(63,29,18,.18); }
+  .talwar-story-page__principles span { display:grid; place-items:center; width:42px; aspect-ratio:1; border:1px solid currentColor; border-radius:50%; font:700 9px/1.3 var(--font-subheading--family),Arial,sans-serif; letter-spacing:.1em; }
+  .talwar-story-page__principles h3 { max-width:12ch; font-size:clamp(2rem,2.3vw,3rem); line-height:1; }
+  .talwar-story-page__principles p { max-width:38ch; line-height:1.58; }
+  .talwar-story-page__chapter { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); width:min(88vw,1320px); margin:clamp(80px,10vw,150px) auto; align-items:center; }
+  .talwar-story-page__chapter-media { position:relative; min-height:620px; overflow:hidden; border-radius:22px; }
+  .talwar-story-page__chapter-media img { display:block; width:100%; height:100%; position:absolute; inset:0; object-fit:cover; }
+  .talwar-story-page__chapter-media > span { position:absolute; left:20px; bottom:20px; padding:10px 13px; background:#f8f3e9; font:700 10px/1.3 var(--font-subheading--family),Arial,sans-serif; letter-spacing:.14em; text-transform:uppercase; }
+  .talwar-story-page__chapter-copy { padding:clamp(38px,6vw,95px); }
+  .talwar-story-page__chapter-copy h2 { max-width:10ch; margin:25px 0 30px; font-size:clamp(3.8rem,5.5vw,6.7rem); line-height:.94; }
+  .talwar-story-page__chapter-copy > p:not(.talwar-story-page__eyebrow) { max-width:43ch; margin-top:18px; font-size:clamp(1rem,1.16vw,1.18rem); line-height:1.65; }
+  .talwar-story-page__chapter-copy a { display:inline-flex; align-items:center; justify-content:space-between; gap:44px; min-height:52px; margin-top:32px; padding:12px 21px; color:#fffaf0; background:#3f1d12; border-radius:3px; font:700 11px/1.3 var(--font-subheading--family),Arial,sans-serif; letter-spacing:.1em; text-decoration:none; text-transform:uppercase; }
+  .talwar-story-page__chapter-copy a:hover { background:#6b3422; }
+  .talwar-story-page__close { width:min(94vw,1500px); margin:0 auto; padding:clamp(65px,7vw,110px) clamp(30px,7vw,125px); overflow:hidden; border-radius:22px; color:#fffaf0; background:#3f1d12; text-align:center; position:relative; isolation:isolate; }
+  .talwar-story-page__close::before { content:''; position:absolute; inset:6%; z-index:-1; opacity:.12; filter:invert(1); background:var(--talwar-story-art-url) center / contain no-repeat; }
+  .talwar-story-page__close .talwar-story-page__eyebrow { color:#e5c588; }
+  .talwar-story-page__close h2 { max-width:13ch; margin:20px auto; font-size:clamp(3.7rem,6vw,7.2rem); line-height:.94; }
+  .talwar-story-page__close > p:last-child { max-width:48ch; margin:0 auto; font-size:clamp(1rem,1.2vw,1.2rem); line-height:1.6; }
+  .talwar-story-page a:focus-visible { outline:3px solid #c8874f; outline-offset:4px; }
+  @media(max-width:899px) {
+    .talwar-story-page__hero-panel { width:60%; padding-inline:6vw 3vw; }
+    .talwar-story-page__belief-grid { grid-template-columns:1fr; gap:35px; }
+    .talwar-story-page__belief-copy { max-width:650px; }
+    .talwar-story-page__promise { grid-template-columns:1fr; }
+    .talwar-story-page__promise-heading { padding-bottom:25px; }
+    .talwar-story-page__promise::before { display:none; }
+    .talwar-story-page__chapter { grid-template-columns:1fr; }
+    .talwar-story-page__chapter-media { min-height:570px; }
+  }
+  @media(max-width:599px) {
+    .talwar-story-page { padding-bottom:16px; }
+    .talwar-story-page__hero { min-height:760px; }
+    .talwar-story-page__hero-media::after { background:linear-gradient(0deg,rgba(40,19,12,.92) 0%,rgba(40,19,12,.68) 48%,rgba(40,19,12,.05) 82%); }
+    .talwar-story-page__hero-media img { object-position:61% center; }
+    .talwar-story-page__hero-panel { justify-content:flex-end; width:100%; padding:70px 24px 55px; }
+    .talwar-story-page__topline { margin-bottom:25px; }
+    .talwar-story-page h1 { max-width:8.4ch; font-size:clamp(3.8rem,13vw,5rem); }
+    .talwar-story-page__lede { margin-top:25px !important; }
+    .talwar-story-page__belief { width:auto; padding:80px 24px; }
+    .talwar-story-page__belief-grid { margin-top:24px; }
+    .talwar-story-page__belief h2 { font-size:clamp(3.5rem,13vw,5rem); }
+    .talwar-story-page__promise { width:calc(100% - 24px); gap:30px; padding:38px 18px 18px; border-radius:20px; }
+    .talwar-story-page__promise-heading h2 { font-size:clamp(3.4rem,12vw,4.8rem); }
+    .talwar-story-page__promise-heading { padding:0 7px 8px; }
+    .talwar-story-page__principles article { grid-template-columns:42px 1fr; gap:15px; padding:23px 20px; border-radius:15px; }
+    .talwar-story-page__principles article:nth-child(2) { transform:none; }
+    .talwar-story-page__principles span { width:36px; }
+    .talwar-story-page__principles h3 { font-size:2.45rem; }
+    .talwar-story-page__principles p { grid-column:2; }
+    .talwar-story-page__chapter { width:auto; margin:80px 12px; }
+    .talwar-story-page__chapter-media { min-height:430px; border-radius:18px; }
+    .talwar-story-page__chapter-copy { padding:45px 12px 0; }
+    .talwar-story-page__chapter-copy h2 { font-size:clamp(3.5rem,13vw,5rem); }
+    .talwar-story-page__close { width:calc(100% - 24px); padding:62px 24px 70px; border-radius:18px; }
+    .talwar-story-page__close h2 { font-size:clamp(3.5rem,13vw,5.2rem); }
+  }
+{% endstylesheet %}
+
+{% schema %}
+{
+  "name":"Talwar brand story",
+  "settings":[
+    {"type":"image_picker","id":"hero_image","label":"Hero image"},
+    {"type":"text","id":"kicker","label":"Hero kicker","default":"THE TALWAR ORGANICS STORY"},
+    {"type":"text","id":"heading","label":"Hero heading","default":"Remember what good food feels like."},
+    {"type":"textarea","id":"lede","label":"Hero introduction","default":"We bring simple organic foods back into everyday life. These are the foods our tables once knew, made without synthetic additives or harmful shortcuts."},
+    {"type":"text","id":"signature","label":"Hero signature","default":"OLD WISDOM / HONEST INGREDIENTS / EVERYDAY FOOD"},
+    {"type":"text","id":"belief_kicker","label":"Belief kicker","default":"WHY TALWAR EXISTS"},
+    {"type":"text","id":"belief_heading","label":"Belief heading","default":"The future of food can begin with what we forgot."},
+    {"type":"textarea","id":"belief_body_one","label":"Belief first paragraph","default":"Somewhere along the way, simple foods became harder to find. Familiar ingredients were replaced by complicated labels, artificial flavours and shortcuts made for shelf life rather than everyday nourishment."},
+    {"type":"textarea","id":"belief_body_two","label":"Belief second paragraph","default":"We started Talwar Organics to return to a clearer idea of food: choose organic ingredients, keep recipes honest, and let every ingredient remain recognisable."},
+    {"type":"text","id":"promise_kicker","label":"Promise kicker","default":"THE TALWAR STANDARD"},
+    {"type":"text","id":"promise_heading","label":"Promise heading","default":"Simple by choice. Thoughtful by nature."},
+    {"type":"text","id":"principle_one_heading","label":"First principle heading","default":"Organic at the source"},
+    {"type":"textarea","id":"principle_one_body","label":"First principle body","default":"We begin with organic ingredients chosen for what they are, not for what can be added to them."},
+    {"type":"text","id":"principle_two_heading","label":"Second principle heading","default":"Nothing unnecessary"},
+    {"type":"textarea","id":"principle_two_body","label":"Second principle body","default":"No synthetic colours, artificial flavours or harmful fillers. We keep every recipe simple and understandable."},
+    {"type":"text","id":"principle_three_heading","label":"Third principle heading","default":"Tradition in the everyday"},
+    {"type":"textarea","id":"principle_three_body","label":"Third principle body","default":"We bring overlooked foods back in forms that fit modern routines, so they can belong to daily life again."},
+    {"type":"text","id":"chapter_image_label","label":"Chapter image label","default":"THE FIRST CHAPTER / GUR"},
+    {"type":"text","id":"chapter_kicker","label":"Chapter kicker","default":"WHERE WE BEGIN"},
+    {"type":"text","id":"chapter_heading","label":"Chapter heading","default":"We begin with gur."},
+    {"type":"textarea","id":"chapter_body_one","label":"Chapter first paragraph","default":"Before refined sweetness became the default, gur had a natural place in our kitchens. It is familiar, versatile and tied to the way many of us grew up eating."},
+    {"type":"textarea","id":"chapter_body_two","label":"Chapter second paragraph","default":"Classic gur for chai and dry fruit gur for a simple sweet bite are our first step. They are not the whole story. We will continue to rediscover honest foods worth bringing back."},
+    {"type":"text","id":"button_label","label":"Button label","default":"Explore our first collection"},
+    {"type":"text","id":"closing_kicker","label":"Closing kicker","default":"THIS IS ONLY THE BEGINNING"},
+    {"type":"text","id":"closing_heading","label":"Closing heading","default":"Old wisdom. A new place at the table."},
+    {"type":"textarea","id":"closing_body","label":"Closing body","default":"Talwar Organics is building a pantry of simple organic foods made for real life."}
+  ],
+  "presets":[{"name":"Talwar brand story"}]
+}
+{% endschema %}

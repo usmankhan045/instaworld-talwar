@@ -26,6 +26,15 @@ database.sqlite
 *.pdf
 *.log
 
+# Local storefront research and visual QA renders
+/brand-research/*.png
+/brand-research/*.html
+/shopify-theme-draft/preview*
+/shopify-theme-draft/remote-*.png
+/brand-assets/talwar-campaign-*.png
+/brand-assets/talwar-cane-engraving.png
+/brand-assets/talwar-organics-hero.png
+
 
 
 

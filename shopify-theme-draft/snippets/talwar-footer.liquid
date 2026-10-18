@@ -1,0 +1,20 @@
+{% doc %}
+Renders the shared Talwar Organics site footer.
+{% enddoc %}
+
+<footer class="talwar-footer" aria-label="Talwar Organics footer">
+  <div class="talwar-footer__brand">
+    <p class="talwar-footer__wordmark">Talwar</p>
+    <p>Organic sweetness for everyday rituals.</p>
+  </div>
+  <nav class="talwar-footer__nav" aria-label="Footer navigation">
+    <a href="{{ routes.root_url }}">Home</a>
+    <a href="/pages/our-food">Our story</a>
+    <a href="{{ routes.collections_url }}/jaggery">Shop gur</a>
+    <a href="/pages/contact">Contact</a>
+  </nav>
+  <div class="talwar-footer__meta">
+    <p>Made for everyday tables across Pakistan.</p>
+    <p>&copy; {{ 'now' | date: '%Y' }} Talwar Organics.</p>
+  </div>
+</footer>

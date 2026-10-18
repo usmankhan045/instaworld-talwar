@@ -1,0 +1,363 @@
+{% liquid
+  assign classic_product = blank
+  assign dry_product = blank
+  assign jaggery_collection = collections['jaggery']
+
+  for product_item in jaggery_collection.products
+    assign product_identity = product_item.handle | append: ' ' | append: product_item.title | downcase
+    if product_identity contains 'dry'
+      assign dry_product = product_item
+    elsif classic_product == blank
+      assign classic_product = product_item
+    endif
+  endfor
+
+  if classic_product == blank
+    assign classic_product = jaggery_collection.products.first
+  endif
+  if dry_product == blank and jaggery_collection.products.size > 1
+    assign dry_product = jaggery_collection.products[1]
+  endif
+%}
+
+<div class="talwar-home">
+  <section class="talwar-hero" aria-labelledby="talwar-hero-title">
+    <div class="talwar-hero__media">
+      {% if section.settings.hero_image != blank %}
+        {{ section.settings.hero_image | image_url: width: 2400 | image_tag: widths: '750, 1100, 1500, 1800, 2400', sizes: '100vw', loading: 'eager', fetchpriority: 'high', alt: section.settings.hero_image.alt }}
+      {% endif %}
+    </div>
+    <p class="talwar-hero__word" aria-hidden="true">Talwar</p>
+    <div class="talwar-hero__content">
+      <p class="talwar-eyebrow">{{ section.settings.hero_kicker | escape }}</p>
+      <h1 id="talwar-hero-title">{{ section.settings.hero_heading | escape }}</h1>
+      <p class="talwar-hero__body">{{ section.settings.hero_body | escape }}</p>
+      <div class="talwar-actions">
+        <a class="talwar-button talwar-button--dark" href="#talwar-shop">{{ section.settings.hero_button | escape }} <span aria-hidden="true">↗</span></a>
+        <a class="talwar-text-link" href="/pages/our-food">{{ section.settings.story_link | escape }}</a>
+      </div>
+      <p class="talwar-hero__note">{{ section.settings.hero_note | escape }}</p>
+    </div>
+  </section>
+
+  <div class="talwar-art-body">
+  <section class="talwar-intro" aria-labelledby="talwar-intro-title">
+    <p class="talwar-eyebrow">{{ section.settings.intro_kicker | escape }}</p>
+    <div class="talwar-intro__grid">
+      <div class="talwar-intro__copy">
+        <h2 id="talwar-intro-title">{{ section.settings.intro_heading | escape }}</h2>
+        <p>{{ section.settings.intro_body | escape }}</p>
+        <a class="talwar-text-link" href="/pages/our-food">{{ section.settings.intro_link | escape }} <span aria-hidden="true">↗</span></a>
+      </div>
+      <div class="talwar-intro__product">
+        <img src="{{ 'talwar-dry-fruit-philosophy.jpg' | asset_url }}" width="1254" height="1254" loading="lazy" alt="Talwar Organics dry fruit gur with nuts and seeds">
+        <span>From cane to the everyday table</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="talwar-rituals" class="talwar-rituals" aria-labelledby="talwar-rituals-title">
+    <div class="talwar-section-heading">
+      <p class="talwar-eyebrow">Two ways to enjoy gur</p>
+      <h2 id="talwar-rituals-title">For your chai. For any sweet moment.</h2>
+      <p>Plain gur sweetens the cup. Dry fruit gur is ready whenever you want a naturally sweet bite.</p>
+    </div>
+    <div class="talwar-rituals__grid">
+      <article class="talwar-ritual talwar-ritual--chai">
+        <div class="talwar-ritual__image">
+          {% if section.settings.chai_image != blank %}
+            {{ section.settings.chai_image | image_url: width: 1200 | image_tag: widths: '450, 750, 1000, 1200', sizes: '(min-width: 750px) 50vw, 100vw', loading: 'lazy', alt: section.settings.chai_image.alt }}
+          {% endif %}
+        </div>
+        <div class="talwar-ritual__copy">
+          <p class="talwar-eyebrow">01 / Pure organic sweetener</p>
+          <h3>Pure organic sweetness for your chai.</h3>
+          <p>Stir plain organic gur into chai instead of refined sugar. Start with a little, then make every cup your own.</p>
+          {% if classic_product != blank %}<a class="talwar-text-link" href="{{ classic_product.url }}">{{ section.settings.chai_link | escape }} <span aria-hidden="true">↗</span></a>{% endif %}
+        </div>
+      </article>
+      <article class="talwar-ritual talwar-ritual--tea">
+        <div class="talwar-ritual__image talwar-ritual__image--real">
+          <img src="{{ 'talwar-dry-fruit-snack-zafran.jpg' | asset_url }}" width="1536" height="1024" loading="lazy" alt="Dry fruit gur served as a sweet snack with zafran green tea">
+        </div>
+        <div class="talwar-ritual__copy">
+          <p class="talwar-eyebrow">02 / Pure organic sweet snack</p>
+          <h3>A delicious sweet snack, whenever you like.</h3>
+          <p>Enjoy dry fruit gur anytime you want something sweet, beside zafran green tea, after a meal, or simply on its own. Nuts and seeds bring satisfying texture to every bite.</p>
+          {% if dry_product != blank %}<a class="talwar-text-link" href="{{ dry_product.url }}">{{ section.settings.tea_link | escape }} <span aria-hidden="true">↗</span></a>{% endif %}
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section id="talwar-shop" class="talwar-shop" aria-labelledby="talwar-shop-title">
+    <p class="talwar-shop__word" aria-hidden="true">GUR</p>
+    <div class="talwar-section-heading talwar-section-heading--shop">
+      <p class="talwar-eyebrow">{{ section.settings.shop_kicker | escape }}</p>
+      <h2 id="talwar-shop-title">{{ section.settings.shop_heading | escape }}</h2>
+      <p>{{ section.settings.shop_body | escape }}</p>
+    </div>
+    <div class="talwar-shop__grid">
+      {% if classic_product != blank %}
+        <article class="talwar-product-card">
+          <a class="talwar-product-card__media talwar-product-card__media--chai" href="{{ classic_product.url }}" aria-label="{{ classic_product.title | escape }}">
+            {% if classic_product.featured_image != blank %}{{ classic_product.featured_image | image_url: width: 1200 | image_tag: widths: '450, 750, 1000, 1200', sizes: '(min-width: 750px) 50vw, 100vw', loading: 'lazy', alt: classic_product.featured_image.alt | default: classic_product.title }}{% endif %}
+            <span class="talwar-product-card__badge">{{ section.settings.classic_badge | escape }}</span>
+          </a>
+          <div class="talwar-product-card__details">
+            <div><p class="talwar-eyebrow">{{ section.settings.classic_eyebrow | escape }}</p><h3><a href="{{ classic_product.url }}">{{ classic_product.title | escape }}</a></h3><p>{{ section.settings.classic_card_body | escape }}</p></div>
+            <div class="talwar-product-card__bottom"><span>{{ classic_product.price | money }}</span><a class="talwar-text-link" href="{{ classic_product.url }}">{{ section.settings.product_link | escape }} <span aria-hidden="true">↗</span></a></div>
+          </div>
+        </article>
+      {% endif %}
+      {% if dry_product != blank %}
+        <article class="talwar-product-card">
+          <a class="talwar-product-card__media talwar-product-card__media--real" href="{{ dry_product.url }}" aria-label="{{ dry_product.title | escape }}">
+            {% if dry_product.featured_image != blank %}{{ dry_product.featured_image | image_url: width: 1200 | image_tag: widths: '450, 750, 1000, 1200', sizes: '(min-width: 750px) 50vw, 100vw', loading: 'lazy', alt: dry_product.featured_image.alt | default: dry_product.title }}{% endif %}
+            <span class="talwar-product-card__badge">{{ section.settings.dry_badge | escape }}</span>
+          </a>
+          <div class="talwar-product-card__details">
+            <div><p class="talwar-eyebrow">{{ section.settings.dry_eyebrow | escape }}</p><h3><a href="{{ dry_product.url }}">{{ dry_product.title | escape }}</a></h3><p>{{ section.settings.dry_card_body | escape }}</p></div>
+            <div class="talwar-product-card__bottom"><span>{{ dry_product.price | money }}</span><a class="talwar-text-link" href="{{ dry_product.url }}">{{ section.settings.product_link | escape }} <span aria-hidden="true">↗</span></a></div>
+          </div>
+        </article>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="talwar-close" aria-labelledby="talwar-close-title">
+    <p class="talwar-eyebrow">{{ section.settings.close_kicker | escape }}</p>
+    <h2 id="talwar-close-title">{{ section.settings.close_heading | escape }}</h2>
+    <p>{{ section.settings.close_body | escape }}</p>
+    <a class="talwar-button talwar-button--light" href="{{ routes.collections_url }}/jaggery">{{ section.settings.close_link | escape }} <span aria-hidden="true">↗</span></a>
+  </section>
+
+  </div>
+</div>
+
+{% stylesheet %}
+  .talwar-home { color: #33211b; background: #f7f2e7; overflow: clip; }
+  .talwar-home * { box-sizing: border-box; }
+  .talwar-home h1, .talwar-home h2, .talwar-home h3 { font-family: var(--font-heading--family), Georgia, serif; font-weight: 400; letter-spacing: -.035em; margin: 0; }
+  .talwar-home p { margin: 0; }
+  .talwar-eyebrow { font-family: var(--font-subheading--family), sans-serif; font-size: .72rem; font-weight: 600; line-height: 1.4; letter-spacing: .18em; text-transform: uppercase; }
+  .talwar-hero { min-height: min(760px, 80vh); display: grid; align-items: center; position: relative; isolation: isolate; background: #f3e6d2; }
+  .talwar-hero__media { position: absolute; inset: 0; z-index: -1; }
+  .talwar-hero__media img { width: 100%; height: 100%; object-fit: cover; object-position: center; }
+  .talwar-hero__content { width: min(43%, 610px); margin-left: max(6vw, 32px); padding: 80px 0; }
+  .talwar-hero__content::before { content: ''; position: absolute; z-index: -1; inset: 0 39% 0 0; background: linear-gradient(90deg, rgba(247,242,231,.94), rgba(247,242,231,.75) 65%, rgba(247,242,231,0)); pointer-events: none; }
+  .talwar-hero h1 { font-size: clamp(3.25rem, 5.25vw, 5.9rem); line-height: .96; max-width: 10.5ch; margin-top: 24px; text-wrap: balance; }
+  .talwar-hero__body { font-size: clamp(1rem, 1.3vw, 1.18rem); line-height: 1.6; max-width: 28rem; margin-top: 28px !important; }
+  .talwar-actions { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; margin-top: 32px; }
+  .talwar-button { min-height: 50px; display: inline-flex; align-items: center; justify-content: center; gap: 20px; padding: 13px 24px; border-radius: 100px; text-decoration: none; font-weight: 600; font-size: .9rem; transition: transform .2s ease, background-color .2s ease; }
+  .talwar-button:hover { transform: translateY(-2px); }
+  .talwar-button--dark { background: #33211b; color: #f7f2e7; }
+  .talwar-button--light { background: #f7f2e7; color: #33211b; }
+  .talwar-text-link { color: inherit; font-size: .9rem; font-weight: 600; text-decoration: none; border-bottom: 1px solid currentColor; padding-bottom: 5px; }
+  .talwar-text-link:hover { opacity: .65; }
+  .talwar-hero__note { font-size: .78rem; letter-spacing: .05em; margin-top: 60px !important; }
+  .talwar-intro, .talwar-rituals, .talwar-shop { padding-inline: max(6vw, 24px); }
+  .talwar-intro { padding-block: clamp(72px, 10vw, 144px); border-bottom: 1px solid #d9c6a8; }
+  .talwar-intro__grid { display: grid; grid-template-columns: 1.2fr .8fr; gap: clamp(40px, 8vw, 150px); align-items: end; margin-top: 30px; }
+  .talwar-intro h2 { font-size: clamp(3.1rem, 5.2vw, 6rem); line-height: 1; max-width: 12ch; text-wrap: balance; }
+  .talwar-intro__copy { max-width: 490px; }
+  .talwar-intro__copy p { font-size: clamp(1.05rem, 1.4vw, 1.25rem); line-height: 1.65; margin-bottom: 30px; }
+  .talwar-rituals { padding-block: clamp(72px, 9vw, 128px); }
+  .talwar-section-heading { max-width: 740px; margin-bottom: 44px; }
+  .talwar-section-heading h2 { font-size: clamp(2.9rem, 4.6vw, 5.2rem); line-height: 1.04; margin-top: 18px; text-wrap: balance; }
+  .talwar-section-heading > p:last-child { font-size: 1.08rem; line-height: 1.6; margin-top: 20px; max-width: 580px; }
+  .talwar-rituals__grid, .talwar-shop__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(18px, 2.5vw, 40px); }
+  .talwar-ritual { min-width: 0; background: #ece2d2; border-radius: 20px; overflow: hidden; }
+  .talwar-ritual--tea { background: #e9d9bc; }
+  .talwar-ritual__image { height: clamp(300px, 36vw, 540px); position: relative; overflow: hidden; }
+  .talwar-ritual__image img { width: 100%; height: 100%; object-fit: cover; object-position: 68% center; transition: transform .6s ease; }
+  .talwar-ritual:hover .talwar-ritual__image img { transform: scale(1.02); }
+  .talwar-ritual__image--real { background: #454544; }
+  .talwar-ritual__image--real img { object-position: center 58%; }
+  .talwar-ritual__caption { position: absolute; right: 16px; bottom: 16px; background: #f7f2e7; color: #33211b; border-radius: 100px; padding: 8px 12px; font-size: .7rem; letter-spacing: .06em; }
+  .talwar-ritual__copy { padding: clamp(24px, 3.4vw, 50px); min-height: 285px; display: flex; flex-direction: column; align-items: flex-start; }
+  .talwar-ritual h3 { font-size: clamp(2.15rem, 3vw, 3.75rem); line-height: 1.08; max-width: 14ch; margin-top: 18px; }
+  .talwar-ritual__copy > p:not(.talwar-eyebrow) { font-size: 1rem; line-height: 1.6; max-width: 430px; margin: 20px 0 26px; }
+  .talwar-ritual__copy .talwar-text-link { margin-top: auto; }
+  .talwar-shop { padding-block: clamp(72px, 9vw, 128px); background: #eee5d7; }
+  .talwar-section-heading--shop { max-width: 800px; }
+  .talwar-product-card { background: #f7f2e7; border-radius: 18px; overflow: hidden; min-width: 0; }
+  .talwar-product-card__media { display: block; height: clamp(280px, 34vw, 520px); position: relative; overflow: hidden; background: #ddd4c7; }
+  .talwar-product-card__media img { width: 100%; height: 100%; object-fit: cover; transition: transform .6s ease; }
+  .talwar-product-card__media:hover img { transform: scale(1.025); }
+  .talwar-product-card__media--chai img { object-position: 68% center; }
+  .talwar-product-card__media--real img { object-position: center 66%; }
+  .talwar-product-card__badge { position: absolute; top: 18px; left: 18px; border-radius: 100px; background: #f7f2e7; color: #33211b; padding: 9px 14px; font-size: .72rem; font-weight: 600; }
+  .talwar-product-card__details { min-height: 220px; padding: clamp(22px, 3vw, 38px); display: flex; flex-direction: column; justify-content: space-between; }
+  .talwar-product-card h3 { font-size: clamp(1.8rem, 2.2vw, 2.65rem); line-height: 1.1; margin-top: 9px; }
+  .talwar-product-card h3 a { color: inherit; text-decoration: none; }
+  .talwar-product-card__details p:not(.talwar-eyebrow) { line-height: 1.5; margin-top: 10px; }
+  .talwar-product-card__bottom { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid #d9c6a8; margin-top: 28px; padding-top: 18px; font-weight: 600; }
+  .talwar-close { background: #33211b; color: #f7f2e7; text-align: center; padding: clamp(44px, 4vw, 58px) 24px; }
+  .talwar-close h2 { font-size: clamp(3rem, 4vw, 4.75rem); line-height: .98; max-width: 850px; margin: 12px auto; text-wrap: balance; }
+  .talwar-close > p:not(.talwar-eyebrow) { font-size: 1.08rem; line-height: 1.6; max-width: 580px; margin: 0 auto 18px; }
+  .talwar-home :focus-visible { outline: 3px solid #8a5c38; outline-offset: 4px; }
+  @media (max-width: 749px) {
+    .talwar-close { padding: 44px 22px 48px; }
+    .talwar-close h2 { font-size: clamp(2.8rem, 10vw, 3.5rem); }
+    .talwar-hero { display: flex; flex-direction: column; min-height: 0; background: #f7f2e7; }
+    .talwar-hero__content { order: 1; width: 100%; margin: 0; padding: 48px 24px 40px; }
+    .talwar-hero__content::before { display: none; }
+    .talwar-hero__media { order: 2; position: relative; width: 100%; height: clamp(300px, 72vw, 520px); z-index: auto; }
+    .talwar-hero__media img { object-position: right center; }
+    .talwar-hero h1 { font-size: clamp(2.8rem, 11vw, 4.8rem); max-width: 11ch; margin-top: 16px; }
+    .talwar-hero__body { font-size: 1rem; margin-top: 18px !important; max-width: 35ch; }
+    .talwar-actions { margin-top: 24px; gap: 18px; }
+    .talwar-hero__note { margin-top: 28px !important; }
+    .talwar-intro__grid, .talwar-rituals__grid, .talwar-shop__grid { grid-template-columns: 1fr; }
+    .talwar-intro { padding-block: 68px; }
+    .talwar-intro__grid { gap: 25px; margin-top: 18px; }
+    .talwar-intro h2 { font-size: clamp(2.8rem, 10vw, 4.4rem); }
+    .talwar-rituals, .talwar-shop { padding-block: 72px; }
+    .talwar-section-heading { margin-bottom: 32px; }
+    .talwar-section-heading h2 { font-size: clamp(2.65rem, 9vw, 4rem); }
+    .talwar-rituals__grid, .talwar-shop__grid { gap: 20px; }
+    .talwar-ritual__image { height: clamp(320px, 95vw, 470px); }
+    .talwar-ritual__copy { min-height: 0; padding: 28px; }
+    .talwar-ritual h3 { font-size: clamp(2.25rem, 8vw, 3.4rem); }
+    .talwar-product-card__media { height: clamp(300px, 88vw, 470px); }
+    .talwar-product-card__details { min-height: 0; padding: 28px; }
+  }
+  @media (max-width: 420px) {
+    .talwar-hero__content, .talwar-intro, .talwar-rituals, .talwar-shop { padding-inline: 20px; }
+    .talwar-hero h1 { font-size: 2.8rem; }
+    .talwar-button { width: 100%; justify-content: space-between; }
+    .talwar-actions { align-items: stretch; flex-direction: column; }
+    .talwar-actions .talwar-text-link { width: fit-content; }
+    .talwar-product-card__bottom { flex-wrap: wrap; }
+  }
+  /* Talwar palette: cream, butter, sand, espresso. Editorial spacing replaces the card grid. */
+  .talwar-home { color:#3f1d12; background:#f8f3e9; }
+  .talwar-eyebrow { color:inherit; font-size:.68rem; font-weight:700; letter-spacing:.2em; }
+  .talwar-hero { min-height:clamp(620px,54vw,800px); background:#f8f3e9; }
+  .talwar-hero__content { width:min(42%,560px); margin-left:max(6vw,32px); padding:90px 0; }
+  .talwar-hero__content::before { inset:0 43% 0 0; background:linear-gradient(90deg,rgba(248,243,233,.98),rgba(248,243,233,.8) 73%,rgba(248,243,233,0)); }
+  .talwar-hero h1 { font-size:clamp(3.8rem,6vw,6.7rem); line-height:.94; max-width:9ch; margin-top:20px; }
+  .talwar-hero__body { max-width:24rem; font-size:1.08rem; }
+  .talwar-hero__note { text-transform:uppercase; letter-spacing:.14em; font-size:.69rem; }
+  .talwar-button { border-radius:3px; padding-inline:25px; letter-spacing:.025em; }
+  .talwar-button--dark { background:#3f1d12; color:#f8f3e9; }
+  .talwar-button--light { background:#f4deaf; color:#3f1d12; }
+  .talwar-intro { background:#3f1d12; color:#f8f3e9; border:0; padding-block:clamp(85px,11vw,170px); }
+  .talwar-intro__grid { grid-template-columns:1.25fr .75fr; align-items:center; }
+  .talwar-intro h2 { font-size:clamp(3.7rem,6.2vw,7rem); line-height:.98; max-width:11ch; }
+  .talwar-intro__copy p { max-width:29rem; }
+  .talwar-rituals { padding:0; }
+  .talwar-rituals > .talwar-section-heading { padding:clamp(75px,8vw,120px) max(6vw,24px) 40px; margin:0; max-width:none; background:#f8f3e9; }
+  .talwar-rituals > .talwar-section-heading h2 { max-width:12ch; font-size:clamp(3.4rem,5vw,6rem); }
+  .talwar-rituals__grid { display:block; }
+  .talwar-ritual { display:grid; grid-template-columns:1fr 1fr; border-radius:0; background:#f4deaf; }
+  .talwar-ritual--tea { background:#e9d9bc; }
+  .talwar-ritual--chai .talwar-ritual__image { order:2; }
+  .talwar-ritual__image { height:clamp(480px,47vw,740px); }
+  .talwar-ritual__image img, .talwar-ritual__image--real img { object-position:center; }
+  .talwar-ritual__copy { padding:clamp(45px,7vw,115px); justify-content:center; align-items:flex-start; min-height:0; }
+  .talwar-ritual h3 { font-size:clamp(3rem,4.5vw,5.8rem); line-height:1; max-width:11ch; margin-top:24px; }
+  .talwar-ritual__copy > p:not(.talwar-eyebrow) { font-size:1.1rem; max-width:28rem; }
+  .talwar-ritual__copy .talwar-text-link { margin-top:15px; }
+  .talwar-ritual__caption { border-radius:2px; background:#f8f3e9; color:#3f1d12; letter-spacing:.12em; font-weight:700; }
+  .talwar-shop { background:#f8f3e9; padding-block:clamp(85px,10vw,145px); }
+  .talwar-section-heading--shop { max-width:900px; }
+  .talwar-shop__grid { gap:clamp(20px,3vw,46px); }
+  .talwar-product-card { background:transparent; border-radius:0; }
+  .talwar-product-card__media { height:clamp(320px,35vw,560px); background:#f4deaf; }
+  .talwar-product-card__badge { border-radius:2px; background:#f8f3e9; color:#3f1d12; font-size:.68rem; letter-spacing:.1em; }
+  .talwar-product-card__details { padding:26px 0 0; min-height:205px; }
+  .talwar-product-card__bottom { border-color:#c7ae91; }
+  .talwar-close { background:#3f1d12; color:#f8f3e9; }
+  .talwar-home :focus-visible { outline-color:#8a5c38; }
+  @media (min-width:750px) {
+    .talwar-ritual { display:block; position:relative; min-height:680px; isolation:isolate; }
+    .talwar-ritual--chai { background:#f8f3e9; padding-block:58px; }
+    .talwar-ritual--chai .talwar-ritual__image { width:72%; height:680px; margin-left:auto; }
+    .talwar-ritual--chai .talwar-ritual__copy { position:absolute; z-index:2; left:max(6vw,42px); top:50%; transform:translateY(-50%); width:min(40%,570px); min-height:470px; padding:clamp(44px,5vw,80px); background:#f4deaf; }
+    .talwar-ritual--tea { min-height:740px; background:#e9d9bc; }
+    .talwar-ritual--tea .talwar-ritual__image { position:absolute; inset:0; width:100%; height:100%; }
+    .talwar-ritual--tea .talwar-ritual__image img { object-position:60% center; }
+    .talwar-ritual--tea::after { content:''; position:absolute; inset:0; background:linear-gradient(90deg,rgba(248,243,233,.93) 0%,rgba(248,243,233,.77) 32%,rgba(248,243,233,0) 58%); pointer-events:none; z-index:0; }
+    .talwar-ritual--tea .talwar-ritual__copy { position:relative; z-index:1; width:min(43%,620px); min-height:740px; padding-left:max(6vw,42px); padding-right:clamp(30px,5vw,80px); }
+    .talwar-ritual--tea .talwar-ritual__caption { right:24px; }
+  }
+  @media (max-width:749px) {
+    .talwar-hero { display:flex; flex-direction:column; min-height:0; }
+    .talwar-hero__media { order:1; position:relative; width:100%; height:clamp(290px,78vw,500px); z-index:auto; }
+    .talwar-hero__media img { object-position:72% center; }
+    .talwar-hero__content { order:2; width:100%; margin:0; padding:42px 24px 60px; }
+    .talwar-hero__content::before { display:none; }
+    .talwar-hero h1 { font-size:clamp(3.6rem,12vw,5.5rem); max-width:10ch; }
+    .talwar-hero__note { margin-top:28px !important; }
+    .talwar-intro__grid { display:block; }
+    .talwar-intro h2 { font-size:clamp(3.5rem,10vw,5rem); margin-bottom:28px; }
+    .talwar-ritual { display:flex; flex-direction:column; }
+    .talwar-ritual--chai .talwar-ritual__image { order:0; }
+    .talwar-ritual__image { height:clamp(320px,88vw,530px); width:100%; }
+    .talwar-ritual__copy { padding:44px 24px 55px; }
+    .talwar-ritual h3 { font-size:clamp(3rem,10vw,4.6rem); }
+    .talwar-shop__grid { grid-template-columns:1fr; gap:54px; }
+    .talwar-product-card__details { min-height:0; }
+  }
+  @media (max-width:420px) {
+    .talwar-hero__content, .talwar-intro, .talwar-shop { padding-inline:20px; }
+    .talwar-hero h1 { font-size:3.45rem; }
+    .talwar-ritual__copy { padding-inline:20px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .talwar-home *, .talwar-home *::before, .talwar-home *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+  }
+{% endstylesheet %}
+
+{% schema %}
+{
+  "name": "Talwar story home",
+  "settings": [
+    { "type": "image_picker", "id": "hero_image", "label": "Hero tea image" },
+    { "type": "text", "id": "hero_kicker", "label": "Hero kicker", "default": "TALWAR ORGANICS / EVERYDAY GUR" },
+    { "type": "text", "id": "hero_heading", "label": "Hero heading", "default": "Everyday, a little sweeter." },
+    { "type": "textarea", "id": "hero_body", "label": "Hero body", "default": "From the morning chai to a quiet cup of green tea, good food lives in small moments. Begin with gur." },
+    { "type": "text", "id": "hero_button", "label": "Hero button", "default": "Explore the rituals" },
+    { "type": "text", "id": "story_link", "label": "Story link", "default": "Our story" },
+    { "type": "text", "id": "hero_note", "label": "Hero note", "default": "Free delivery across Pakistan" },
+    { "type": "text", "id": "intro_kicker", "label": "Story kicker", "default": "THE TALWAR STORY" },
+    { "type": "text", "id": "intro_heading", "label": "Story heading", "default": "Some things stay with us." },
+    { "type": "textarea", "id": "intro_body", "label": "Story body", "default": "The first sip of chai. Something sweet after a long day. Talwar Organics begins with gur because it belongs in these familiar rituals. Classic jaggery for your cup; dry fruit jaggery for a moment of its own." },
+    { "type": "text", "id": "intro_link", "label": "Story call to action", "default": "Read our story" },
+    { "type": "text", "id": "rituals_kicker", "label": "Rituals kicker", "default": "TWO EVERYDAY RITUALS" },
+    { "type": "text", "id": "rituals_heading", "label": "Rituals heading", "default": "Good moments have their own sweetness." },
+    { "type": "textarea", "id": "rituals_body", "label": "Rituals body", "default": "A spoonful for the cup. A little bite for the pause. Find the gur that belongs in your day." },
+    { "type": "image_picker", "id": "chai_image", "label": "Chai image without product" },
+    { "type": "text", "id": "chai_kicker", "label": "Chai kicker", "default": "01 / THE MORNING CUP" },
+    { "type": "text", "id": "chai_heading", "label": "Chai heading", "default": "The cup that starts it all." },
+    { "type": "textarea", "id": "chai_body", "label": "Chai body", "default": "Add classic gur to your chai in place of sugar, to taste. A familiar ritual, made your own." },
+    { "type": "text", "id": "chai_link", "label": "Chai link", "default": "Shop classic gur" },
+    { "type": "image_picker", "id": "dry_image", "label": "Real dry fruit gur photo" },
+    { "type": "image_picker", "id": "dry_close_image", "label": "Real dry fruit gur close photo" },
+    { "type": "text", "id": "real_photo_label", "label": "Real photo label", "default": "THE REAL GUR" },
+    { "type": "text", "id": "tea_kicker", "label": "Green tea kicker", "default": "02 / THE AFTERNOON PAUSE" },
+    { "type": "text", "id": "tea_heading", "label": "Green tea heading", "default": "A sweet bite beside green tea." },
+    { "type": "textarea", "id": "tea_body", "label": "Green tea body", "default": "Enjoy dry fruit gur as a sweet snack with green tea. Almonds, walnuts, pumpkin seeds and coconut bring texture to every piece." },
+    { "type": "text", "id": "tea_link", "label": "Green tea link", "default": "Shop dry fruit gur" },
+    { "type": "text", "id": "shop_kicker", "label": "Shop kicker", "default": "THE FIRST COLLECTION" },
+    { "type": "text", "id": "shop_heading", "label": "Shop heading", "default": "Bring the ritual home." },
+    { "type": "textarea", "id": "shop_body", "label": "Shop body", "default": "Two ways to make room for gur in the everyday." },
+    { "type": "product", "id": "classic_product", "label": "Classic gur product" },
+    { "type": "product", "id": "dry_product", "label": "Dry fruit gur product" },
+    { "type": "text", "id": "classic_badge", "label": "Classic card badge", "default": "FOR YOUR CHAI" },
+    { "type": "text", "id": "classic_eyebrow", "label": "Classic card eyebrow", "default": "CLASSIC / 1 KG" },
+    { "type": "text", "id": "classic_card_body", "label": "Classic card body", "default": "Your cup, your sweetness." },
+    { "type": "text", "id": "dry_badge", "label": "Dry fruit card badge", "default": "FOR YOUR TEA BREAK" },
+    { "type": "text", "id": "dry_eyebrow", "label": "Dry fruit card eyebrow", "default": "DRY FRUIT / 1 KG" },
+    { "type": "text", "id": "dry_card_body", "label": "Dry fruit card body", "default": "A sweet, textured bite for the afternoon pause." },
+    { "type": "text", "id": "product_link", "label": "Product link", "default": "View product" },
+    { "type": "text", "id": "close_kicker", "label": "Closing kicker", "default": "TALWAR ORGANICS" },
+    { "type": "text", "id": "close_heading", "label": "Closing heading", "default": "For the small moments worth keeping." },
+    { "type": "textarea", "id": "close_body", "label": "Closing body", "default": "Gur for chai, a sweet bite with green tea, and more good food to come." },
+    { "type": "text", "id": "close_link", "label": "Closing link", "default": "Shop jaggery" }
+  ],
+  "presets": [{ "name": "Talwar story home" }]
+}
+{% endschema %}

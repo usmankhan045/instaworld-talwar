@@ -1,0 +1,73 @@
+# Talwar Organics — storefront and launch plan
+
+Store: `phx90d-he.myshopify.com`
+
+Brand: Talwar Organics
+
+Launch focus: 1 kg classic jaggery and 1 kg dry fruit jaggery
+
+Market: Pakistan only; free domestic delivery; cash on delivery
+
+## Creative direction
+
+Make jaggery the visual and editorial anchor. The brand story follows two familiar rituals: plain gur stirred into chai in place of sugar, and dry fruit gur as a sweet bite with green tea. Keep the original wide jaggery hero the merchant liked. Campaign photographs should preserve the irregular shapes and pale, crumbly texture of the supplied real product. Use warm cream, butter, sand and coffee brown throughout; no blue. The Pinterest pin could be inspected as a still image, but its video motion could not be reviewed.
+
+| Role | Colour | Use |
+| --- | --- | --- |
+| Background | `#F8F3E9` warm cream | Main page surfaces |
+| Text | `#3F1D12` coffee brown | Headlines and body text |
+| Secondary | `#4D372A` coffee brown | Buttons and anchors |
+| Accent | `#F4DEAF` butter | Chai chapter and announcement strip |
+| Neutral | `#E9D9BC` warm sand | Green tea chapter |
+| Border | `#D9C6A8` oat | Dividers and fields |
+
+Use ITC New Baskerville for editorial headlines and Madera for clear body and navigation text. The homepage rituals use two distinct editorial scenes with large photography and offset copy, rather than four equal grid blocks. Keep body copy readable and the mobile sequence image first. Avoid simulated scarcity, health claims, and certification badges without evidence.
+
+## Store structure and customer path
+
+1. **Home:** original hero, a brief brand point of view, chai and green tea chapters, then the two gur products and delivery reassurance.
+2. **Jaggery collection:** two consistent cards with accurate photo, title, 1 kg size, PKR price and stock state. Make the classic and dry fruit variants easy to compare.
+3. **Product pages:** lead with the real product photo; show price, pack size, ingredients, dry fruit allergen details, delivery cost and returns summary near purchase controls. Add preparation or serving notes only when verified.
+4. **Our Story:** explain the two rituals and the brand approach in plain language. Keep sourcing and production claims within what the merchant can substantiate.
+5. **FAQ and footer:** answer nationwide delivery, pack size, ingredient and damaged-order questions. Add checkout policies and genuine contact information.
+6. **Cart and checkout:** one clear path to checkout, PKR currency, Pakistan addresses only, free shipping rate and cash on delivery instructions. Test this with a real or test order before launch.
+
+## Implemented on the new store
+
+- Created an **unpublished Horizon design draft** with the warm palette, ITC New Baskerville/Madera pairing, wordmark, restored jaggery hero, branded navigation, butter announcement strip, editorial ritual scenes, and a two-product homepage section. The current live theme is unchanged.
+- Copied the two jaggery products from the old store, updated brand-facing copy and vendor, and published them to the Online Store channel. Prices are PKR 1,450 and PKR 1,850. Inventory quantities were not changed.
+- Created and published the Jaggery collection, Our Story page and FAQ page. The FAQ includes the agreed damaged/incorrect-order rule.
+- Changed the domestic delivery profile to a PKR 0 Free delivery rate across Pakistan and removed its international shipping zone.
+- Saved the original hero, wordmark, and warm campaign imagery in `brand-assets/` and uploaded them to Shopify. The dry fruit product gallery leads with the merchant's real photos; the classic gallery leads with a styled image based on the merchant's description of its shape.
+
+## Checkout policy text to enter in Shopify Settings
+
+The connected Shopify app lacks the `write_legal_policies` permission, so these native checkout policies must be pasted into **Settings → Policies**. The FAQ already carries the return summary.
+
+### Return and refund policy
+
+> **Damaged or incorrect orders**
+>
+> If your order arrives damaged or you receive the wrong item, email talwarorganics@gmail.com within 48 hours of delivery. Please include your order number and clear photos of the item and its packaging. We will review the issue and arrange a replacement or refund where appropriate.
+>
+> **Food returns**
+>
+> For food safety, we cannot accept returns of opened or used items. Please contact us before sending anything back so we can provide return instructions.
+>
+> This policy does not limit any rights you may have under applicable law.
+
+### Shipping policy
+
+> We deliver throughout Pakistan. Standard delivery is free on all orders.
+>
+> Delivery times depend on your location and courier availability. If you need help with a shipment, email talwarorganics@gmail.com with your order number.
+
+## Merchant launch steps
+
+1. In **Settings → General**, rename the Shopify store from “My Store” to “Talwar Organics”. Review the autogenerated Privacy Policy, which still contains “My Store”.
+2. In **Settings → Payments**, activate the manual **Cash on Delivery (COD)** payment method and enter the customer-facing payment instructions.
+3. In **Settings → Policies**, save the return/refund and shipping policy text above. Review the privacy and terms text for the correct store name and contact details.
+4. Enter inventory for the two tracked jaggery products. They currently have zero stock and may appear sold out.
+5. Preview the unpublished design draft on desktop and mobile. Check hero crop, readability, menu links, card images, product variants, cart, checkout and the thank-you screen. Publish the draft only after this review.
+6. Add an unstyled photograph of the actual classic gur when available. Its current lead image is a styled representation based on the merchant's description. The older image with the previous brand label and inaccurate shape was removed.
+7. Place an end-to-end test order with a Pakistan address, free delivery and COD. Confirm order email, admin order details and the returns contact path.

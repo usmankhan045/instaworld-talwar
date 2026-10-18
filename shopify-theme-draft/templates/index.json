@@ -1,0 +1,50 @@
+{
+  "sections": {
+    "talwar_home": {
+      "type": "talwar-home",
+      "settings": {
+        "hero_image": "shopify://shop_images/talwar-organics-jaggery-hero.jpg",
+        "chai_image": "shopify://shop_images/talwar-campaign-classic-chai.png",
+        "dry_image": "shopify://shop_images/talwar-campaign-green-tea-warm.png",
+        "dry_close_image": "shopify://shop_images/talwar-campaign-butter-gur.png",
+        "classic_product": "organic-jaggery-gur",
+        "dry_product": "organic-almond-jaggery-gur",
+        "hero_kicker": "TALWAR ORGANICS / THE EVERYDAY TABLE",
+        "hero_heading": "For the good in every day.",
+        "hero_body": "The first chai. The afternoon pause. Discover gur made for the moments that make a day yours.",
+        "hero_button": "Shop the first collection",
+        "story_link": "Discover our story",
+        "intro_kicker": "A NOTE FROM TALWAR",
+        "intro_heading": "The little rituals stay with us.",
+        "intro_body": "Chai has a way of bringing us together. Green tea can give us a moment to ourselves. We began Talwar Organics with gur because one familiar sweetness has a place in both.",
+        "intro_link": "The story behind Talwar",
+        "rituals_kicker": "TWO WAYS TO MAKE A MOMENT",
+        "rituals_heading": "From the first cup to the quiet one.",
+        "rituals_body": "Different parts of the day. A simple pleasure in each.",
+        "chai_kicker": "01 / MORNING CHAI",
+        "chai_heading": "Sweeten the cup your way.",
+        "chai_body": "Stir plain gur into chai in place of sugar. Start with a little, then make it yours.",
+        "chai_link": "Explore classic gur",
+        "tea_kicker": "02 / GREEN TEA PAUSE",
+        "tea_heading": "A sweet bite for the slower hour.",
+        "tea_body": "Take a piece of dry fruit gur alongside green tea. Irregular, textured and satisfyingly sweet, just as the real pieces are.",
+        "tea_link": "Explore dry fruit gur",
+        "real_photo_label": "STYLED FROM THE REAL PRODUCT",
+        "shop_kicker": "THE FIRST COLLECTION",
+        "shop_heading": "Choose your moment.",
+        "shop_body": "Two ways to keep gur close: one for the cup, one for the pause.",
+        "classic_badge": "FOR CHAI",
+        "classic_eyebrow": "PLAIN GUR / 1 KG",
+        "classic_card_body": "The familiar sweetness for your everyday chai.",
+        "dry_badge": "FOR THE TEA BREAK",
+        "dry_eyebrow": "DRY FRUIT GUR / 1 KG",
+        "dry_card_body": "A sweet snack with texture, made to enjoy with green tea.",
+        "close_kicker": "TALWAR ORGANICS",
+        "close_heading": "Make room for a little sweetness.",
+        "close_body": "Our first collection begins with gur. More good food for everyday moments will follow.",
+        "close_link": "Explore all gur"
+      }
+    }
+  },
+  "order": ["talwar_home"]
+}

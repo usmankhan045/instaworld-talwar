@@ -1,0 +1,35 @@
+{
+  "sections": {
+    "talwar_story_page": {
+      "type": "talwar-story-page",
+      "settings": {
+        "kicker": "THE TALWAR ORGANICS STORY",
+        "heading": "Remember what good food feels like.",
+        "lede": "We bring simple organic foods back into everyday life. These are the foods our tables once knew, made without synthetic additives or harmful shortcuts.",
+        "signature": "OLD WISDOM / HONEST INGREDIENTS / EVERYDAY FOOD",
+        "belief_kicker": "WHY TALWAR EXISTS",
+        "belief_heading": "The future of food can begin with what we forgot.",
+        "belief_body_one": "Somewhere along the way, simple foods became harder to find. Familiar ingredients were replaced by complicated labels, artificial flavours and shortcuts made for shelf life rather than everyday nourishment.",
+        "belief_body_two": "We started Talwar Organics to return to a clearer idea of food: choose organic ingredients, keep recipes honest, and let every ingredient remain recognisable.",
+        "promise_kicker": "THE TALWAR STANDARD",
+        "promise_heading": "Simple by choice. Thoughtful by nature.",
+        "principle_one_heading": "Organic at the source",
+        "principle_one_body": "We begin with organic ingredients chosen for what they are, not for what can be added to them.",
+        "principle_two_heading": "Nothing unnecessary",
+        "principle_two_body": "No synthetic colours, artificial flavours or harmful fillers. We keep every recipe simple and understandable.",
+        "principle_three_heading": "Tradition in the everyday",
+        "principle_three_body": "We bring overlooked foods back in forms that fit modern routines, so they can belong to daily life again.",
+        "chapter_image_label": "THE FIRST CHAPTER / GUR",
+        "chapter_kicker": "WHERE WE BEGIN",
+        "chapter_heading": "We begin with gur.",
+        "chapter_body_one": "Before refined sweetness became the default, gur had a natural place in our kitchens. It is familiar, versatile and tied to the way many of us grew up eating.",
+        "chapter_body_two": "Classic gur for chai and dry fruit gur for a simple sweet bite are our first step. They are not the whole story. We will continue to rediscover honest foods worth bringing back.",
+        "button_label": "Explore our first collection",
+        "closing_kicker": "THIS IS ONLY THE BEGINNING",
+        "closing_heading": "Old wisdom. A new place at the table.",
+        "closing_body": "Talwar Organics is building a pantry of simple organic foods made for real life."
+      }
+    }
+  },
+  "order": ["talwar_story_page"]
+}
