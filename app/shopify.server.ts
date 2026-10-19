@@ -10,6 +10,7 @@ import prisma from "./db.server";
 const requiredScopes = [
   "read_orders",
   "read_products",
+  "write_fulfillments",
   "read_merchant_managed_fulfillment_orders",
   "write_merchant_managed_fulfillment_orders",
 ];

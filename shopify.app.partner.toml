@@ -18,7 +18,7 @@ api_version = "2026-10"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_merchant_managed_fulfillment_orders,read_orders,read_products,write_merchant_managed_fulfillment_orders"
+scopes = "read_merchant_managed_fulfillment_orders,read_orders,read_products,write_fulfillments,write_merchant_managed_fulfillment_orders"
 
 [auth]
 redirect_urls = [ "https://instaworld.barriovibe.com/auth/callback" ]
