@@ -76,25 +76,32 @@ async function gql(admin: any, query: string, variables?: Record<string, unknown
  * Get all fulfillment order IDs for a Shopify order.
  * We need these to create a fulfillment.
  */
-async function getFulfillmentOrderIds(admin: any, shopifyOrderId: string): Promise<string[]> {
+async function getFulfillmentOrderIdsByOrder(admin: any, shopifyOrderIds: string[]): Promise<Map<string, string[]>> {
   const data = await gql(
     admin,
-    `query GetFulfillmentOrders($orderId: ID!) {
-      order(id: $orderId) {
-        fulfillmentOrders(first: 20) {
-          nodes {
-            id
-            status
+    `query GetFulfillmentOrders($orderIds: [ID!]!) {
+      nodes(ids: $orderIds) {
+        ... on Order {
+          id
+          fulfillmentOrders(first: 20) {
+            nodes {
+              id
+              status
+            }
           }
         }
       }
     }`,
-    {orderId: shopifyOrderId},
+    {orderIds: shopifyOrderIds},
   );
-  const nodes = data?.data?.order?.fulfillmentOrders?.nodes ?? [];
-  return nodes
-    .filter((fo: any) => fo.status === "OPEN" || fo.status === "IN_PROGRESS")
-    .map((fo: any) => fo.id);
+  const result = new Map<string, string[]>();
+  for (const order of data?.data?.nodes ?? []) {
+    if (!order?.id) continue;
+    result.set(order.id, (order.fulfillmentOrders?.nodes ?? [])
+      .filter((fulfillmentOrder: any) => fulfillmentOrder.status === "OPEN" || fulfillmentOrder.status === "IN_PROGRESS")
+      .map((fulfillmentOrder: any) => fulfillmentOrder.id));
+  }
+  return result;
 }
 
 /**
@@ -108,17 +115,18 @@ export async function createShopifyFulfillment(
   trackingNumber: string,
 ): Promise<string | null> {
   const trackingUrl = `https://one-be.instaworld.pk/tracking/${trackingNumber}`;
-  let firstFulfillmentId: string | null = null;
-  let createdCount = 0;
+  const fulfillmentOrderIdsByOrder = await getFulfillmentOrderIdsByOrder(admin, shopifyOrderIds);
 
   // Shopify only allows fulfillment orders from the same Shopify order in a
   // single fulfillmentCreate mutation. The InstaWorld parcel is combined,
-  // but each source Shopify order needs its own fulfillment record.
-  for (const orderId of shopifyOrderIds) {
-    const fulfillmentOrderIds = await getFulfillmentOrderIds(admin, orderId);
+  // but each source Shopify order needs its own fulfillment record. Fetch all
+  // fulfillment-order IDs in one query, then create the independent records
+  // concurrently instead of using two Shopify round trips per source order.
+  const fulfillmentIds = await Promise.all(shopifyOrderIds.map(async (orderId) => {
+    const fulfillmentOrderIds = fulfillmentOrderIdsByOrder.get(orderId) ?? [];
     if (fulfillmentOrderIds.length === 0) {
       console.warn("[shopify-fulfillment] No open fulfillment orders found for", orderId);
-      continue;
+      return null;
     }
 
     const data = await gql(
@@ -145,20 +153,16 @@ export async function createShopifyFulfillment(
     const errors = data?.data?.fulfillmentCreate?.userErrors ?? [];
     if (errors.length > 0) {
       console.error("[shopify-fulfillment] createFulfillment userErrors for", orderId, errors);
-      continue;
+      return null;
     }
+    return data?.data?.fulfillmentCreate?.fulfillment?.id ?? null;
+  }));
 
-    const fulfillmentId = data?.data?.fulfillmentCreate?.fulfillment?.id ?? null;
-    if (fulfillmentId) {
-      firstFulfillmentId ||= fulfillmentId;
-      createdCount += 1;
-    }
-  }
-
+  const createdCount = fulfillmentIds.filter(Boolean).length;
   if (createdCount !== shopifyOrderIds.length) {
     console.error("[shopify-fulfillment] Created fulfillments for", createdCount, "of", shopifyOrderIds.length, "source orders.");
   }
-  return firstFulfillmentId;
+  return fulfillmentIds.find((id): id is string => Boolean(id)) ?? null;
 }
 
 /**

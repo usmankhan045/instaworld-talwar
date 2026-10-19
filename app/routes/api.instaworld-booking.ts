@@ -90,7 +90,9 @@ export async function action({request}: ActionFunctionArgs) {
   try {
     const orders = await getShopifyOrders(admin, orderIds);
     stage = "InstaWorld booking and database reservation";
-    const result = await bookCombinedOrders(session.shop, orders, declaredWeight, admin, typeof body?.accountId === "string" ? body.accountId : undefined);
+    const result = await bookCombinedOrders(session.shop, orders, declaredWeight, admin,
+      typeof body?.accountId === "string" ? body.accountId : undefined,
+      typeof body?.addressOrderId === "string" ? body.addressOrderId : undefined);
     return json({success: true, ...result});
   } catch (error) {
     return json(

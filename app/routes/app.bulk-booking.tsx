@@ -5,6 +5,7 @@ import {useFetcher, useLoaderData} from "react-router";
 import {authenticate} from "../shopify.server";
 import {bookBulkGroups, validateBulkCsv, type BulkBookingResult, type BulkBookingGroup} from "../lib/bulk-booking.server";
 import prisma from "../db.server";
+import styles from "../styles/ui.module.css";
 
 export async function loader({request}: LoaderFunctionArgs) {
   const {session} = await authenticate.admin(request);
@@ -57,22 +58,18 @@ export default function BulkBooking() {
       <s-button slot="primary-action" href="/templates/whatsapp-booking-template.csv" download="whatsapp-booking-template.csv" variant="secondary">
         Download CSV template
       </s-button>
-      <s-section heading="Upload your shipment file">
-        <s-paragraph>Use one row per product. Repeat the same reference for multiple products in one shipment. We’ll group matching references into a single 0.8 kg shipment.</s-paragraph>
-        <input
-          type="file"
-          accept=".csv,text/csv"
-          onChange={async (event) => {
-            const file = event.currentTarget.files?.[0];
-            if (!file) return;
-            setFileName(file.name);
-            setCsvText(await file.text());
-          }}
-        />
-        {fileName && <s-paragraph>Selected: {fileName}</s-paragraph>}
-        <s-button variant="primary" disabled={!csvText || busy} loading={busy} onClick={() => submitCsv("preview")}>
-          Review shipments
-        </s-button>
+      <div className={styles.pageContent}>
+      <s-section heading="1 · Upload your shipment file">
+        <s-paragraph>Use one row per product. Repeat the same reference for multiple products in one shipment. Matching references are grouped into one 0.8 kg shipment.</s-paragraph>
+        <div className={styles.uploadZone}>
+          <s-stack direction="block" gap="base">
+            <s-text type="strong">Choose a CSV file</s-text>
+            <s-text tone="neutral">Up to 500 product rows and 100 shipments per upload.</s-text>
+            <input className={styles.fileInput} type="file" accept=".csv,text/csv" onChange={async (event) => { const file = event.currentTarget.files?.[0]; if (!file) return; setFileName(file.name); setCsvText(await file.text()); }} />
+            {fileName && <div className={styles.fileName}><s-text tone="success">Ready: {fileName}</s-text></div>}
+            <s-button variant="primary" disabled={!csvText || busy} loading={busy} onClick={() => submitCsv("preview")}>Review shipments</s-button>
+          </s-stack>
+        </div>
       </s-section>
       {data?.errors?.length ? (
         <s-section heading="Fix these CSV errors">
@@ -80,7 +77,7 @@ export default function BulkBooking() {
         </s-section>
       ) : null}
       {data?.ok && data.groups ? (
-        <s-section heading="Review before booking">
+        <s-section heading="2 · Review before booking">
           <s-banner heading={`${data.groups.length} shipments ready`} tone="info">{data.rowCount} product rows were grouped successfully. Check the destination and courier account before booking.</s-banner>
           <s-table>
             <s-table-header-row><s-table-header>Reference</s-table-header><s-table-header>Customer</s-table-header><s-table-header>City</s-table-header><s-table-header>Products</s-table-header><s-table-header>Amount</s-table-header>{showAccountRouting && <s-table-header>Book with</s-table-header>}</s-table-header-row>
@@ -104,6 +101,7 @@ export default function BulkBooking() {
       <s-section heading="File format">
         <s-paragraph>Required: reference, first_name, phone, address, city, amount, product_title, quantity. Optional: last_name, email, province, postal_code, country, sku, color, payment_type.</s-paragraph>
       </s-section>
+      </div>
     </s-page>
   );
 }

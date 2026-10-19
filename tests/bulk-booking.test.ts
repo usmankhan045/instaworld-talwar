@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {formatBulkBookingError, validateBulkCsv} from "../app/lib/bulk-booking.server.ts";
+import {formatBulkBookingError, mapWithConcurrency, validateBulkCsv} from "../app/lib/bulk-booking.server.ts";
 
 const header = "reference,first_name,last_name,phone,email,address,city,province,postal_code,country,amount,product_title,sku,color,quantity,payment_type";
 
@@ -44,4 +44,41 @@ test("formats every failed booking with a reference and human-readable message",
     "WA-9: This city is not serviceable by InstaWorld. Check the city name.",
   );
   assert.match(formatBulkBookingError("WA-10", "booking the shipment with InstaWorld", new Error("fetch failed")), /WA-10: Could not connect/);
+});
+
+test("keeps the bounded worker pool busy without waiting for the slowest group", async () => {
+  const started: number[] = [];
+  let active = 0;
+  let maximumActive = 0;
+  let releaseSlowest!: () => void;
+  const slowest = new Promise<void>((resolve) => { releaseSlowest = resolve; });
+
+  const running = mapWithConcurrency([0, 1, 2, 3, 4, 5], 5, async (value) => {
+    started.push(value);
+    active += 1;
+    maximumActive = Math.max(maximumActive, active);
+    if (value === 0) await slowest;
+    else await new Promise<void>((resolve) => setImmediate(resolve));
+    active -= 1;
+    return value * 2;
+  });
+
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.ok(started.includes(5), "the sixth job should start while the first job is still running");
+  assert.equal(maximumActive, 5);
+  releaseSlowest();
+  assert.deepEqual(await running, [0, 2, 4, 6, 8, 10]);
+});
+
+test("never exceeds the configured concurrency ceiling", async () => {
+  let active = 0;
+  let maximumActive = 0;
+  await mapWithConcurrency([1, 2, 3, 4, 5, 6, 7], 3, async (value) => {
+    active += 1;
+    maximumActive = Math.max(maximumActive, active);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    active -= 1;
+    return value;
+  });
+  assert.equal(maximumActive, 3);
 });

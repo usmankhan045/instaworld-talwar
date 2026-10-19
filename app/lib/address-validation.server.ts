@@ -53,6 +53,17 @@ type GeocodeCandidate = {
   address?: AddressComponents;
 };
 
+const ADDRESS_CACHE_TTL_MS = 5 * 60 * 1000;
+const ADDRESS_CACHE_MAX_ENTRIES = 500;
+const addressVerificationCache = new Map<string, {result: AddressVerificationResult; expiresAt: number}>();
+const addressVerificationInFlight = new Map<string, Promise<AddressVerificationResult>>();
+
+function addressCacheKey(input: DeliveryAddressInput): string {
+  return JSON.stringify([
+    input.address1, input.address2, input.city, input.province, input.zip, input.country, input.countryCode,
+  ].map((value) => String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ")));
+}
+
 /** City aliases used by InstaWorld/Shopify addresses in Pakistan. */
 const CITY_ALIASES: Record<string, string[]> = {
   ISLAMABAD: ["islamabad", "isb", "اسلام آباد", "اسلاماباد"],
@@ -522,7 +533,7 @@ export function validateGeocodeCandidate(
 }
 
 /** Verify and normalize a Shopify delivery address. City contradictions are hard failures; detail gaps are warnings. */
-export async function verifyDeliveryAddress(
+async function verifyDeliveryAddressUncached(
   input: DeliveryAddressInput,
 ): Promise<AddressVerificationResult> {
   const address1 = input.address1?.trim();
@@ -553,29 +564,37 @@ export async function verifyDeliveryAddress(
       .filter((part): part is string => Boolean(part?.trim()))
       .flatMap((part) => part.split(/[,;]+/).map((segment) => `${segment.trim()}, ${input.city}, ${input.country || "Pakistan"}`)),
   ].filter((query): query is string => Boolean(query?.trim())))];
-  const candidates: Array<{candidate: GeocodeCandidate; source: VerifiedAddress["source"]}> = [];
+  let sawCandidate = false;
+  let bestFailure: AddressVerificationResult | null = null;
 
+  // Try the strongest query first and stop as soon as either independent
+  // provider verifies it. Previously every query was sent to one provider and
+  // then every query was repeated against the fallback, even after a match.
   for (const query of queries) {
-    try {
-      for (const candidate of await geocodeMapsCo(query)) {
-        candidates.push({candidate, source: "geocode.maps.co"});
+    const [mapsResult, nominatimResult] = await Promise.allSettled([
+      geocodeMapsCo(query),
+      geocodeNominatim(query),
+    ]);
+    const candidates: Array<{candidate: GeocodeCandidate; source: VerifiedAddress["source"]}> = [
+      ...(mapsResult.status === "fulfilled"
+        ? mapsResult.value.map((candidate) => ({candidate, source: "geocode.maps.co" as const}))
+        : []),
+      ...(nominatimResult.status === "fulfilled"
+        ? nominatimResult.value.map((candidate) => ({candidate, source: "nominatim" as const}))
+        : []),
+    ].sort((left, right) => cityEvidenceRank(right.candidate, city) - cityEvidenceRank(left.candidate, city));
+
+    if (candidates.length > 0) sawCandidate = true;
+    for (const {candidate, source} of candidates) {
+      const result = candidateResult(candidate, source, input);
+      if (result.ok) return result;
+      if (!bestFailure || result.code === "POSTAL_CODE_MISMATCH" || result.code === "ADDRESS_CITY_MISMATCH") {
+        bestFailure = result;
       }
-    } catch {
-      // Try the independent fallback provider below.
     }
   }
 
-  for (const query of queries) {
-    try {
-      for (const candidate of await geocodeNominatim(query)) {
-        candidates.push({candidate, source: "nominatim"});
-      }
-    } catch {
-      // Keep trying other query forms/providers.
-    }
-  }
-
-  if (candidates.length === 0) {
+  if (!sawCandidate) {
     return {
       ok: true,
       verifiedAddress: {
@@ -590,28 +609,35 @@ export async function verifyDeliveryAddress(
     };
   }
 
-  // Geocoders frequently return a nearby locality for the detailed query and
-  // the correct city for the later city-only query. Always evaluate the city
-  // evidence first so the nearby result cannot win merely because it arrived
-  // earlier in the response list.
-  const orderedCandidates = [...candidates].sort(
-    (left, right) => cityEvidenceRank(right.candidate, city) - cityEvidenceRank(left.candidate, city),
-  );
-
-  let bestFailure: AddressVerificationResult | null = null;
-  for (const {candidate, source} of orderedCandidates) {
-    const result = candidateResult(candidate, source, input);
-    if (result.ok) return result;
-    if (!bestFailure || result.code === "POSTAL_CODE_MISMATCH" || result.code === "ADDRESS_CITY_MISMATCH") {
-      bestFailure = result;
-    }
-  }
-
   return bestFailure || {
     ok: false,
     code: "ADDRESS_NOT_FOUND",
     message: "The address could not be verified using the available map data. Add a recognizable landmark, village, road, or nearby shop name; no address was guessed.",
   };
+}
+
+/** Cache and coalesce identical checks so preview, address changes, and booking do not repeat geocoding. */
+export async function verifyDeliveryAddress(
+  input: DeliveryAddressInput,
+): Promise<AddressVerificationResult> {
+  const key = addressCacheKey(input);
+  const cached = addressVerificationCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.result;
+  if (cached) addressVerificationCache.delete(key);
+
+  const inFlight = addressVerificationInFlight.get(key);
+  if (inFlight) return inFlight;
+
+  const verification = verifyDeliveryAddressUncached(input).then((result) => {
+    if (addressVerificationCache.size >= ADDRESS_CACHE_MAX_ENTRIES) {
+      const oldestKey = addressVerificationCache.keys().next().value;
+      if (oldestKey) addressVerificationCache.delete(oldestKey);
+    }
+    addressVerificationCache.set(key, {result, expiresAt: Date.now() + ADDRESS_CACHE_TTL_MS});
+    return result;
+  }).finally(() => addressVerificationInFlight.delete(key));
+  addressVerificationInFlight.set(key, verification);
+  return verification;
 }
 
 /** Backward-compatible helper for callers that only need the error message. */

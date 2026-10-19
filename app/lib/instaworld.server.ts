@@ -433,6 +433,7 @@ export function stringifyForInstaWorld(value: unknown): string {
 async function request(path: string, config: InstaWorldConfig, init?: RequestInit) {
   return fetch(`${config.baseUrl}${path}`, {
     ...init,
+    signal: init?.signal ?? AbortSignal.timeout(15000),
     headers: {
       Authorization: `Bearer ${config.apiKey}`,
       Accept: "application/json",
@@ -440,6 +441,50 @@ async function request(path: string, config: InstaWorldConfig, init?: RequestIni
       ...(init?.headers || {}),
     },
   });
+}
+
+const instaworldCitiesCache = new Map<string, {cities: string[]; expiresAt: number}>();
+const instaworldCitiesInFlight = new Map<string, Promise<string[]>>();
+
+/** Prefer the merchant's current spelling when it exactly exists in InstaWorld. */
+export function matchInstaWorldCity(raw: string | null | undefined, cities: string[]): string | null {
+  if (!raw) return null;
+  const comparable = (value: string) => value.trim().toUpperCase().replace(/\s+/g, " ");
+  const current = comparable(stripCityQualifier(stripProvinceQualifier(raw)));
+  const exact = cities.find((city) => comparable(city) === current);
+  if (exact) return comparable(exact);
+
+  const corrected = normaliseCity(raw);
+  const correctedMatch = cities.find((city) => comparable(city) === comparable(corrected));
+  return correctedMatch ? comparable(correctedMatch) : null;
+}
+
+export async function getInstaWorldCities(config: InstaWorldConfig): Promise<string[]> {
+  const cached = instaworldCitiesCache.get(config.baseUrl);
+  if (cached && Date.now() < cached.expiresAt) return cached.cities;
+  const pending = instaworldCitiesInFlight.get(config.baseUrl);
+  if (pending) return pending;
+
+  const lookup = (async () => {
+    const response = await request("/cities", config);
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(extractErrorMessage(payload, response.status));
+    const cities = Array.isArray(payload?.data)
+      ? payload.data.map((city: {name?: unknown}) => String(city?.name ?? "").trim().toUpperCase()).filter(Boolean)
+      : [];
+    if (cities.length === 0) throw new Error("InstaWorld returned no serviceable cities.");
+    instaworldCitiesCache.set(config.baseUrl, {cities, expiresAt: Date.now() + 60 * 60 * 1000});
+    return cities;
+  })().finally(() => instaworldCitiesInFlight.delete(config.baseUrl));
+  instaworldCitiesInFlight.set(config.baseUrl, lookup);
+  return lookup;
+}
+
+export async function resolveInstaWorldCity(
+  raw: string | null | undefined,
+  config: InstaWorldConfig,
+): Promise<string | null> {
+  return matchInstaWorldCity(raw, await getInstaWorldCities(config));
 }
 
 /**

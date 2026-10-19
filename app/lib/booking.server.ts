@@ -12,6 +12,7 @@ import {
   getPaymentType,
   normalisePhone,
   normaliseCity,
+  resolveInstaWorldCity,
   replaceCityInAddress,
   truncate,
   type InstaWorldConfig,
@@ -19,8 +20,12 @@ import {
 } from "./instaworld.server";
 import {createShopifyFulfillment} from "./shopify-fulfillment.server";
 import type {ShopifyOrder} from "./shopify-orders.server";
-import {verifyDeliveryAddress} from "./address-validation.server";
+import {selectDeliveryAddress} from "./delivery-selection.server";
 import {resolveInstaWorldConfig} from "./instaworld-accounts.server";
+import {
+  checkInstaWorldOrderAvailability,
+  secondaryOrderAvailabilityError,
+} from "./instaworld-order-availability.server";
 
 const RESERVATION_LEASE_MS = 5 * 60 * 1000;
 function fingerprint(orders: ShopifyOrder[], declaredWeight: number) {
@@ -50,7 +55,23 @@ function splitName(full: string): {first_name: string; last_name?: string} {
   return {first_name, last_name};
 }
 
-async function releaseReservationsForCancelledShipments(shop: string, orderIds: string[], config: InstaWorldConfig) {
+function memoizedShipmentLookup(config: InstaWorldConfig) {
+  const lookups = new Map<string, Promise<Awaited<ReturnType<typeof findShipmentByReference>>>>();
+  return (reference: string) => {
+    let lookup = lookups.get(reference);
+    if (!lookup) {
+      lookup = findShipmentByReference(reference, config);
+      lookups.set(reference, lookup);
+    }
+    return lookup;
+  };
+}
+
+async function releaseReservationsForCancelledShipments(
+  shop: string,
+  orderIds: string[],
+  lookupShipment: (reference: string) => ReturnType<typeof findShipmentByReference>,
+) {
   const activeReservations = await prisma.orderReservation.findMany({
     where: {
       shop,
@@ -72,15 +93,16 @@ async function releaseReservationsForCancelledShipments(shop: string, orderIds: 
   });
 
   const cancelledAttemptIds = new Set<string>();
-  for (const attempt of attempts) {
+  const remoteStatuses = await Promise.all(attempts.map(async (attempt) => {
     const localStatus = `${attempt.shipment.status} ${attempt.shipment.instaworldStatus || ""}`;
     if (localStatus.toUpperCase().includes("CANCEL")) {
-      cancelledAttemptIds.add(attempt.id);
-      continue;
+      return {attemptId: attempt.id, cancelled: true};
     }
-
-    const remote = await findShipmentByReference(attempt.shipment.refNo, config);
-    if (remote && isCancelledShipment(remote)) cancelledAttemptIds.add(attempt.id);
+    const remote = await lookupShipment(attempt.shipment.refNo);
+    return {attemptId: attempt.id, cancelled: Boolean(remote && isCancelledShipment(remote))};
+  }));
+  for (const result of remoteStatuses) {
+    if (result.cancelled) cancelledAttemptIds.add(result.attemptId);
   }
 
   if (cancelledAttemptIds.size > 0) {
@@ -103,8 +125,8 @@ function buildRequest(
   // Phone: use consignee phone first, then fall back across all orders
   const phone = normalisePhone(combined.consignee.phone) || pickPhone(orders);
 
-  // City: normalise + alias map
-  const city = normaliseCity(combined.consignee.city);
+  // This value was already matched against InstaWorld's live city list.
+  const city = String(combined.consignee.city ?? "").trim().toUpperCase();
 
   // Email is optional; omit it when Shopify did not provide one.
   const email = orders[0]?.email?.trim() || undefined;
@@ -151,49 +173,75 @@ export async function bookCombinedOrders(
   _declaredWeight: number,
   admin?: unknown,
   accountId?: string,
+  addressOrderId?: string,
 ) {
-  const config = await resolveInstaWorldConfig(shop, accountId);
   // The courier weighs the parcel at the office. Always book one fixed
   // shipment weight regardless of line count or product quantity.
   const declaredWeight = FIXED_SHIPMENT_WEIGHT_KG;
-  const combined = combineOrders(orders, declaredWeight);
-  const addressVerification = await verifyDeliveryAddress(combined.consignee);
-  if (!addressVerification.ok) {
-    throw new Error(addressVerification.message);
-  }
-  const verifiedCombined = {
-    ...combined,
-    consignee: {
-      ...combined.consignee,
-      address1: addressVerification.verifiedAddress.formattedAddress,
-      address2: null,
-      city: addressVerification.verifiedAddress.city,
-      province: addressVerification.verifiedAddress.province || combined.consignee.province,
-      zip: addressVerification.verifiedAddress.postalCode || combined.consignee.zip,
-    },
-  };
-  const existingLinks = await prisma.shipmentOrder.findMany({
-    where: {shop, shopifyOrderId: {in: combined.orderIds}},
+  const existingLinksPromise = prisma.shipmentOrder.findMany({
+    where: {shop, shopifyOrderId: {in: orders.map((order) => order.id)}},
     select: {
       shopifyOrderId: true,
       shopifyOrderNumber: true,
       shipment: {select: {id: true, refNo: true, status: true, instaworldStatus: true}},
     },
   });
+  const [config, addressSelection, existingLinks] = await Promise.all([
+    resolveInstaWorldConfig(shop, accountId),
+    selectDeliveryAddress(orders, declaredWeight, addressOrderId),
+    existingLinksPromise,
+  ]);
+  const {combined, verification: addressVerification} = addressSelection;
+  if (!addressVerification.ok) {
+    throw new Error(addressVerification.message);
+  }
+  const lookupShipment = memoizedShipmentLookup(config);
+  const [secondaryAvailability, resolvedServiceCity] = await Promise.all([
+    checkInstaWorldOrderAvailability(shop, orders.slice(1), config, {
+      findShipment: (reference) => lookupShipment(reference),
+    }),
+    resolveInstaWorldCity(combined.consignee.city, config).catch(() => normaliseCity(combined.consignee.city)),
+  ]);
+  const availabilityError = secondaryOrderAvailabilityError(secondaryAvailability);
+  if (availabilityError) throw new Error(availabilityError.message);
+  const serviceCity = resolvedServiceCity;
+  if (!serviceCity) {
+    throw new Error(`InstaWorld does not currently service ${combined.consignee.city?.trim().toUpperCase() || "this city"}.`);
+  }
+  const verifiedCombined = {
+    ...combined,
+    consignee: {
+      ...combined.consignee,
+      // Shopify is the current source of truth after a merchant edits an order.
+      // Map data validates it but must not restore an older spelling.
+      address1: combined.consignee.address1,
+      address2: combined.consignee.address2,
+      city: serviceCity,
+      province: combined.consignee.province || addressVerification.verifiedAddress.province,
+      zip: combined.consignee.zip || addressVerification.verifiedAddress.postalCode,
+    },
+  };
   const cancelledLinkedOrderIds = new Set<string>();
-  for (const link of existingLinks) {
-    const remote = await findShipmentByReference(link.shipment.refNo, config);
+  const linkedShipments = await Promise.all(existingLinks.map(async (link) => ({
+    link,
+    remote: await lookupShipment(link.shipment.refNo),
+  })));
+  const cancelledShipmentIds: string[] = [];
+  for (const {link, remote} of linkedShipments) {
     if (remote && !isCancelledShipment(remote)) {
       throw new Error(`Order #${link.shopifyOrderNumber} is already booked in InstaWorld.`);
     }
     const localStatus = `${link.shipment.status} ${link.shipment.instaworldStatus || ""}`.toUpperCase();
     if (!remote || isCancelledShipment(remote) || localStatus.includes("CANCEL")) {
       cancelledLinkedOrderIds.add(link.shopifyOrderId);
-      await prisma.shipment.update({
-        where: {id: link.shipment.id},
-        data: {status: "cancelled", instaworldStatus: "CANCELLED"},
-      });
+      cancelledShipmentIds.push(link.shipment.id);
     }
+  }
+  if (cancelledShipmentIds.length > 0) {
+    await prisma.shipment.updateMany({
+      where: {id: {in: cancelledShipmentIds}},
+      data: {status: "cancelled", instaworldStatus: "CANCELLED"},
+    });
   }
   if (cancelledLinkedOrderIds.size > 0) {
     await prisma.orderReservation.updateMany({
@@ -208,7 +256,7 @@ export async function bookCombinedOrders(
   // A canceled InstaWorld shipment can leave its local reservation active
   // until the normal lease expires. Release that reservation before checking
   // for concurrent attempts so the order can be booked again immediately.
-  await releaseReservationsForCancelledShipments(shop, combined.orderIds, config);
+  await releaseReservationsForCancelledShipments(shop, combined.orderIds, lookupShipment);
   const attemptId = randomUUID();
   const idempotencyKey = randomUUID();
   // Use Shopify order number(s) as the human-readable refNo (e.g. "1006" or "1006+1007")
@@ -341,7 +389,7 @@ export async function bookCombinedOrders(
   });
 
   try {
-    const existing = await findShipmentByReference(refNo, config);
+    const existing = await lookupShipment(refNo);
     if (existing && !isCancelledShipment(existing)) {
       return await finalizeSuccessfulBooking(shop, attempt.id, existing.trackingNumber, orders, admin);
     }

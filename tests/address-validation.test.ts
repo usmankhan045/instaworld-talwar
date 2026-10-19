@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   validateGeocodeCandidate,
+  verifyDeliveryAddress,
   type DeliveryAddressInput,
 } from "../app/lib/address-validation.server.ts";
 
@@ -332,4 +333,29 @@ test("matches an Urdu Shopify city to its canonical city", () => {
   );
 
   assert.equal(result.ok, true);
+});
+
+test("stops after the first verified query and reuses the result for booking", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.GEOCODE_MAPS_API_KEY;
+  let requests = 0;
+  process.env.GEOCODE_MAPS_API_KEY = "test-key";
+  globalThis.fetch = async () => {
+    requests += 1;
+    return new Response(JSON.stringify([lahoreCandidate]), {status: 200});
+  };
+
+  try {
+    const uniqueAddress = {...address, address1: "House 9127, Main Boulevard Gulberg"};
+    const preview = await verifyDeliveryAddress(uniqueAddress);
+    const booking = await verifyDeliveryAddress(uniqueAddress);
+
+    assert.equal(preview.ok, true);
+    assert.deepEqual(booking, preview);
+    assert.equal(requests, 2, "both providers should run once for the first query only");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.GEOCODE_MAPS_API_KEY;
+    else process.env.GEOCODE_MAPS_API_KEY = originalApiKey;
+  }
 });

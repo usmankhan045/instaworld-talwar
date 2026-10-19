@@ -6,6 +6,7 @@ import {
   FIXED_SHIPMENT_WEIGHT_KG,
   isCancelledShipment,
   isDeliveredShipment,
+  matchInstaWorldCity,
   normaliseCity,
   replaceCityInAddress,
   stringifyForInstaWorld,
@@ -49,6 +50,14 @@ test("books one clean English address without duplicate components", () => {
 test("corrects small Pakistani city spelling mistakes", () => {
   assert.equal(normaliseCity("salkot"), "SIALKOT");
   assert.equal(normaliseCity("Islamabd"), "ISLAMABAD");
+});
+
+test("prefers the current Shopify spelling when InstaWorld lists it exactly", () => {
+  assert.equal(
+    matchInstaWorldCity("Liaqatpur", ["LIAQATPUR", "LIAQUATPUR"]),
+    "LIAQATPUR",
+  );
+  assert.equal(matchInstaWorldCity("Islamabd", ["ISLAMABAD"]), "ISLAMABAD");
 });
 
 test("converts Urdu city names to InstaWorld's canonical English names", () => {

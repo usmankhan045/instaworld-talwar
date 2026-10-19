@@ -1,6 +1,7 @@
 import {randomUUID} from "node:crypto";
 
 import prisma from "../db.server.ts";
+import {resolveInstaWorldConfig} from "./instaworld-accounts.server.ts";
 import {
   allocateShipmentWeight,
   buildInstaWorldAddress,
@@ -76,6 +77,37 @@ export type BulkBookingResult = {
   message?: string;
   error?: string;
 };
+
+const BULK_BOOKING_CONCURRENCY = 5;
+
+/**
+ * Keep a fixed number of jobs active without waiting for artificial batches.
+ * Results retain input order even when individual jobs finish out of order.
+ */
+export async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  task: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  if (!Number.isInteger(concurrency) || concurrency < 1) {
+    throw new Error("Concurrency must be a positive whole number.");
+  }
+  if (items.length === 0) return [];
+
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  const worker = async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await task(items[index], index);
+    }
+  };
+
+  const workerCount = Math.min(concurrency, items.length);
+  await Promise.all(Array.from({length: workerCount}, () => worker()));
+  return results;
+}
 
 export function formatBulkBookingError(reference: string, stage: string, error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error || "Unknown error");
@@ -195,21 +227,26 @@ function requestFor(group: BulkBookingGroup, locationId: number): InstaWorldRequ
   };
 }
 
-async function bookOneBulkGroup(shop: string, group: BulkBookingGroup): Promise<BulkBookingResult> {
+async function bookOneBulkGroup(
+  shop: string,
+  group: BulkBookingGroup,
+  configPromise: ReturnType<typeof resolveInstaWorldConfig>,
+): Promise<BulkBookingResult> {
   let stage = "checking for an existing InstaWorld booking";
   try {
-    const {resolveInstaWorldConfig} = await import("./instaworld-accounts.server");
-    const config = await resolveInstaWorldConfig(shop, group.accountId);
+    const config = await configPromise;
     // InstaWorld is the source of truth. A cancelled remote shipment may be
     // booked again; an active remote shipment is skipped as a duplicate.
-    const remote = await findShipmentByReference(group.reference, config);
+    const [remote, local] = await Promise.all([
+      findShipmentByReference(group.reference, config),
+      prisma.shipment.findUnique({
+        where: {shipment_shop_refNo_key: {shop, refNo: group.reference}},
+        include: {attempts: {orderBy: {createdAt: "desc"}, take: 1}},
+      }),
+    ]);
     if (remote && !isCancelledShipment(remote)) {
       return {reference: group.reference, status: "skipped", trackingNumber: remote.trackingNumber, message: "Already booked in InstaWorld."};
     }
-    const local = await prisma.shipment.findUnique({
-      where: {shipment_shop_refNo_key: {shop, refNo: group.reference}},
-      include: {attempts: {orderBy: {createdAt: "desc"}, take: 1}},
-    });
     const bookingReference = group.reference;
     stage = "creating the shipment request";
     const requestPayload = requestFor({...group, reference: bookingReference}, config.locationId!);
@@ -271,11 +308,19 @@ async function bookOneBulkGroup(shop: string, group: BulkBookingGroup): Promise<
 }
 
 export async function bookBulkGroups(shop: string, groups: BulkBookingGroup[]): Promise<BulkBookingResult[]> {
-  const results: BulkBookingResult[] = [];
-  const batchSize = 5;
-  for (let index = 0; index < groups.length; index += batchSize) {
-    const batch = groups.slice(index, index + batchSize);
-    results.push(...await Promise.all(batch.map((group) => bookOneBulkGroup(shop, group))));
-  }
-  return results;
+  const configs = new Map<string, ReturnType<typeof resolveInstaWorldConfig>>();
+  const configFor = (group: BulkBookingGroup) => {
+    const key = group.accountId || "__default__";
+    let config = configs.get(key);
+    if (!config) {
+      config = resolveInstaWorldConfig(shop, group.accountId);
+      configs.set(key, config);
+    }
+    return config;
+  };
+  return mapWithConcurrency(
+    groups,
+    BULK_BOOKING_CONCURRENCY,
+    (group) => bookOneBulkGroup(shop, group, configFor(group)),
+  );
 }

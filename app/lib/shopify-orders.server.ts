@@ -48,6 +48,11 @@ export type ShopifyOrder = {
   }>;
 };
 
+export type ShopifyOrderMatchCandidate = Pick<
+  ShopifyOrder,
+  "id" | "orderNumber" | "email" | "createdAt" | "cancelledAt" | "shippingAddress"
+>;
+
 type GraphqlResponse<T> = {
   data?: T;
   errors?: Array<{ message: string }>;
@@ -230,7 +235,8 @@ export async function getShopifyOrders(
     );
   }
 
-  return nodes.map(parseOrder);
+  const ordersById = new Map(nodes.map((node) => [String(node.id), parseOrder(node)]));
+  return orderIds.map((id) => ordersById.get(id)!);
 }
 
 /**
@@ -266,14 +272,7 @@ export async function getShopifyOrderNumbers(
 export async function searchShopifyOrders(
   admin: ShopifyAdminGraphql,
   search: string,
-): Promise<
-  Array<
-    Pick<
-      ShopifyOrder,
-      "id" | "orderNumber" | "createdAt" | "cancelledAt"
-    >
-  >
-> {
+): Promise<ShopifyOrderMatchCandidate[]> {
   const result = await admin.graphql(
     `#graphql
       query SearchOrders($query: String!) {
@@ -286,8 +285,21 @@ export async function searchShopifyOrders(
           nodes {
             id
             name
+            email
             createdAt
             cancelledAt
+            shippingAddress {
+              name
+              phone
+              address1
+              address2
+              city
+              province
+              provinceCode
+              zip
+              country
+              countryCodeV2
+            }
           }
         }
       }
@@ -304,7 +316,22 @@ export async function searchShopifyOrders(
   return data.orders.nodes.map((order) => ({
     id: String(order.id),
     orderNumber: String(order.name).replace(/^#/, ""),
+    email: order.email ? String(order.email) : null,
     createdAt: String(order.createdAt),
     cancelledAt: order.cancelledAt ?? null,
+    shippingAddress: order.shippingAddress
+      ? {
+          name: order.shippingAddress.name ?? null,
+          phone: order.shippingAddress.phone ?? null,
+          address1: order.shippingAddress.address1 ?? null,
+          address2: order.shippingAddress.address2 ?? null,
+          city: order.shippingAddress.city ?? null,
+          province: order.shippingAddress.province ?? null,
+          provinceCode: order.shippingAddress.provinceCode ?? null,
+          zip: order.shippingAddress.zip ?? null,
+          country: order.shippingAddress.country ?? null,
+          countryCode: order.shippingAddress.countryCodeV2 ?? null,
+        }
+      : null,
   }));
 }

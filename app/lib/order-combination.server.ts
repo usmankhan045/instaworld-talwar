@@ -27,6 +27,10 @@ export type CombinedOrder = {
   defaultWeight: number;
   payment: PaymentSummary;
   consignee: NonNullable<ShopifyOrder["shippingAddress"]>;
+  addressOrderId: string;
+  addressOptions: Array<{orderId: string; orderNumber: string; address: NonNullable<ShopifyOrder["shippingAddress"]>}>;
+  addressesDiffer: boolean;
+  recipientDetailsDiffer: boolean;
 };
 
 function normalized(value: string | null | undefined) {
@@ -34,7 +38,34 @@ function normalized(value: string | null | undefined) {
 }
 
 function normalizedPhone(value: string | null | undefined) {
-  return normalized(value).replace(/[^\d+]/g, "");
+  const digits = normalized(value).replace(/\D/g, "");
+  if (digits.startsWith("92") && digits.length === 12) return `0${digits.slice(2)}`;
+  return digits.startsWith("3") && digits.length === 10 ? `0${digits}` : digits;
+}
+
+function sameCustomer(first: ShopifyOrder, order: ShopifyOrder) {
+  if (first.email && order.email && normalized(first.email) === normalized(order.email)) return true;
+  const firstPhone = normalizedPhone(first.shippingAddress?.phone);
+  const otherPhone = normalizedPhone(order.shippingAddress?.phone);
+  if (/^03\d{9}$/.test(firstPhone) && firstPhone === otherPhone) return true;
+  return Boolean(first.shippingAddress?.name && order.shippingAddress?.name &&
+    normalized(first.shippingAddress.name) === normalized(order.shippingAddress.name) &&
+    first.shippingAddress.address1 && order.shippingAddress.address1 &&
+    normalized(first.shippingAddress.address1) === normalized(order.shippingAddress.address1));
+}
+
+function usableAddress(address: ShopifyOrder["shippingAddress"]) {
+  return Boolean(address?.address1?.trim() && address?.city?.trim());
+}
+
+function addressScore(address: NonNullable<ShopifyOrder["shippingAddress"]>) {
+  return [address.name, address.phone, address.address1, address.address2, address.city,
+    address.province, address.zip, address.countryCode].filter((field) => field?.trim()).length;
+}
+
+function addressKey(address: NonNullable<ShopifyOrder["shippingAddress"]>) {
+  return [address.address1, address.address2, address.city, address.provinceCode,
+    address.zip, address.countryCode].map(normalized).join("|");
 }
 
 function getPayment(order: ShopifyOrder): PaymentSummary {
@@ -93,35 +124,43 @@ export function combineOrders(
       sum + order.lineItems.reduce((lineSum, item) => lineSum + item.quantity, 0) * DEFAULT_WEIGHT_PER_QUANTITY,
     0,
   ),
+  addressOrderId?: string,
 ): CombinedOrder {
+  if (orders.length === 0) throw new Error("Select at least one order.");
   if (orders.some((order) => order.cancelledAt)) {
     throw new Error("Cancelled orders cannot be combined.");
   }
 
   const [first] = orders;
-  const firstAddress = first.shippingAddress;
-  if (!firstAddress) {
-    throw new Error(`Order #${first.orderNumber} has no delivery address.`);
+  for (const order of orders.slice(1)) {
+    if (!sameCustomer(first, order)) {
+      throw new Error(`Order #${order.orderNumber} could not be confirmed as the same customer.`);
+    }
   }
 
-  for (const order of orders.slice(1)) {
-    const address = order.shippingAddress;
-    if (!address) {
-      throw new Error(`Order #${order.orderNumber} has no delivery address.`);
-    }
-    const sameAddress = [
-      "name",
-      "address1",
-      "address2",
-      "city",
-      "provinceCode",
-      "zip",
-      "countryCode",
-    ].every((field) => normalized(address[field as keyof typeof address]) === normalized(firstAddress[field as keyof typeof firstAddress]));
-    if (!sameAddress || normalizedPhone(address.phone) !== normalizedPhone(firstAddress.phone)) {
-      throw new Error(`Order #${order.orderNumber} has incompatible recipient or delivery details.`);
-    }
+  const addressOptions = orders.filter((order) => usableAddress(order.shippingAddress))
+    .map((order) => ({orderId: order.id, orderNumber: order.orderNumber,
+      address: order.shippingAddress!}));
+  if (addressOptions.length === 0) {
+    throw new Error("None of the selected orders has a street address and city. Update a shipping address in Shopify before booking.");
   }
+  if (addressOrderId && !orders.some((order) => order.id === addressOrderId)) {
+    throw new Error("The selected delivery address must come from one of the selected orders.");
+  }
+  const selectedAddress = addressOrderId
+    ? addressOptions.find((option) => option.orderId === addressOrderId)
+    : [...addressOptions].sort((left, right) => addressScore(right.address) - addressScore(left.address))[0];
+  if (!selectedAddress) {
+    throw new Error("The selected order has no usable street address and city. Choose another order's delivery address.");
+  }
+  const validPhone = (phone: string | null | undefined) => /^03\d{9}$/.test(normalizedPhone(phone));
+  const fallbackPhone = orders.map((order) => order.shippingAddress?.phone).find(validPhone);
+  const fallbackName = orders.map((order) => order.shippingAddress?.name).find((name) => name?.trim());
+  const consignee = {
+    ...selectedAddress.address,
+    name: selectedAddress.address.name?.trim() || fallbackName || null,
+    phone: validPhone(selectedAddress.address.phone) ? selectedAddress.address.phone!.trim() : fallbackPhone || null,
+  };
 
   const payments = orders.map(getPayment);
   const treatment = payments[0].treatment;
@@ -178,6 +217,11 @@ export function combineOrders(
       amountDue: payments.reduce((sum, payment) => sum + payment.amountDue, 0),
       currencyCode,
     },
-    consignee: firstAddress,
+    consignee,
+    addressOrderId: selectedAddress.orderId,
+    addressOptions,
+    addressesDiffer: new Set(addressOptions.map((option) => addressKey(option.address))).size > 1,
+    recipientDetailsDiffer: new Set(addressOptions.map((option) =>
+      `${normalized(option.address.name)}|${normalizedPhone(option.address.phone)}`)).size > 1,
   };
 }

@@ -13,6 +13,7 @@ class ApiError extends Error {
   /** @type {string[]} */
   orderNumbers = [];
   orderNumber = "";
+  blockedOrderIds = [];
 }
 
 function formatMoney(amount, currency) {
@@ -62,6 +63,7 @@ async function readApiResponse(response, fallbackMessage) {
     const error = new ApiError(messages[payload.code] || rawMessage);
     error.orderNumbers = [...new Set([payload.orderNumber, ...orderNumbers].filter(Boolean))];
     error.orderNumber = error.orderNumbers[0] || "";
+    error.blockedOrderIds = Array.isArray(payload.blockedOrderIds) ? payload.blockedOrderIds : [];
     throw error;
   }
   return payload;
@@ -89,7 +91,9 @@ function Extension() {
   const [results, setResults] = useState([]);
   const [relatedOrders, setRelatedOrders] = useState([]);
   const [combined, setCombined] = useState(null);
+  const [addressOrderId, setAddressOrderId] = useState("");
   const [verifiedAddress, setVerifiedAddress] = useState(null);
+  const [addressValid, setAddressValid] = useState(false);
   const [loading, setLoading] = useState(Boolean(currentOrderId));
   const [searching, setSearching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -108,7 +112,7 @@ function Extension() {
     refreshPreview([currentOrderId]);
   }, [currentOrderId]);
 
-  async function refreshPreview(orderIds) {
+  async function refreshPreview(orderIds, chosenAddressOrderId = addressOrderId) {
     setLoading(true);
     setError("");
     try {
@@ -116,19 +120,23 @@ function Extension() {
       const response = await fetch(`${APP_URL}/api/instaworld-orders`, {
         method: "POST",
         headers: {"Content-Type": "application/json", ...authHeaders},
-        body: JSON.stringify({orderIds, accountId: accountId || undefined}),
+        body: JSON.stringify({orderIds, accountId: accountId || undefined,
+          addressOrderId: chosenAddressOrderId || undefined}),
       });
       const payload = await readApiResponse(response, "The selected orders cannot be combined.");
       if (payload.orders) {
         setSelectedOrders(payload.orders);
         setCombined(null);
         setVerifiedAddress(null);
+        setAddressValid(false);
         setRelatedOrders([]);
         return;
       }
       setSelectedOrders(payload.combined.orders || []);
       setCombined(payload.combined);
       setVerifiedAddress(payload.verifiedAddress || null);
+      setAddressValid(!payload.addressError);
+      setError(payload.addressError || "");
       setRelatedOrders(payload.relatedOrders || []);
       setAccounts(payload.accounts || []);
       if (!accountId && payload.accounts?.length) setAccountId(payload.accounts.find((account) => account.isDefault)?.id || payload.accounts[0].id);
@@ -137,17 +145,29 @@ function Extension() {
     } catch (previewError) {
       const apiError = previewError instanceof ApiError ? previewError : null;
       const orderNumbers = apiError?.orderNumbers || [];
+      const blockedOrderIds = apiError?.blockedOrderIds || [];
+      if (blockedOrderIds.length > 0) {
+        setSelectedOrderIds((current) => current.filter((id) => !blockedOrderIds.includes(id)));
+        setSelectedOrders((current) => current.filter((order) => !blockedOrderIds.includes(order.id)));
+        setResults((current) => current.filter((order) => !blockedOrderIds.includes(order.id)));
+        setRelatedOrders((current) => current.filter((order) => !blockedOrderIds.includes(order.id)));
+        setAddressOrderId((current) => blockedOrderIds.includes(current) ? "" : current);
+      }
       const orderNumber = apiError?.orderNumber || selectedOrders.find((order) => order.id === currentOrderId)?.orderNumber;
-      if (orderNumber) setSelectedOrders([{id: currentOrderId, orderNumber}]);
+      if (orderNumber) setSelectedOrders((current) => current.some((order) => order.id === currentOrderId)
+        ? current : [{id: currentOrderId, orderNumber}, ...current]);
       const orderLabel = orderNumbers.length > 1
         ? `Orders ${orderNumbers.map((number) => `#${number}`).join(", ")}: `
         : orderNumber
           ? `Order #${orderNumber}: `
           : "";
       setError(`${orderLabel}${previewError instanceof Error ? previewError.message : "Unable to validate this order."}`);
-      setCombined(null);
-      setVerifiedAddress(null);
-      setRelatedOrders([]);
+      if (blockedOrderIds.length === 0) {
+        setCombined(null);
+        setVerifiedAddress(null);
+        setAddressValid(false);
+        setRelatedOrders([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -185,7 +205,10 @@ function Extension() {
     if (orderId === currentOrderId) return;
     const nextIds = selectedOrderIds.filter((id) => id !== orderId);
     setSelectedOrderIds(nextIds);
-    refreshPreview(nextIds);
+    const nextAddressOrderId = addressOrderId === orderId ? "" : addressOrderId;
+    setAddressOrderId(nextAddressOrderId);
+    setSelectedOrders((current) => current.filter((order) => order.id !== orderId));
+    refreshPreview(nextIds, nextAddressOrderId);
   }
 
   async function bookShipment() {
@@ -203,7 +226,8 @@ function Extension() {
         method: "POST",
         headers: {"Content-Type": "application/json", ...authHeaders},
         // Weight is always fixed at 0.8 kg
-        body: JSON.stringify({orderIds: selectedOrderIds, declaredWeight: 0.8, accountId: accountId || undefined}),
+        body: JSON.stringify({orderIds: selectedOrderIds, declaredWeight: 0.8,
+          accountId: accountId || undefined, addressOrderId: combined?.addressOrderId}),
       });
       const payload = await readApiResponse(response, "Booking failed.");
       if (!payload.success) {
@@ -289,6 +313,28 @@ function Extension() {
         {loading && <s-text>Validating selected orders…</s-text>}
         {combined?.orders?.length > 1 && (
           <>
+            <s-select
+              label="Delivery address for the combined shipment"
+              value={combined.addressOrderId}
+              onChange={(event) => {
+                const nextAddressOrderId = event.currentTarget.value;
+                setAddressOrderId(nextAddressOrderId);
+                refreshPreview(selectedOrderIds, nextAddressOrderId);
+              }}
+            >
+              {combined.addressOptions.map((option) => (
+                <s-option key={option.orderId} value={option.orderId}>
+                  Order #{option.orderNumber}: {[option.address.address1, option.address.city].filter(Boolean).join(", ")}
+                </s-option>
+              ))}
+            </s-select>
+            {(combined.addressesDiffer || combined.recipientDetailsDiffer) && (
+              <s-banner tone="warning">These orders have different delivery or recipient details. Check the selected address, name and phone before booking.</s-banner>
+            )}
+          </>
+        )}
+        {combined?.orders?.length > 1 && (
+          <>
             <s-text type="strong">Combined review</s-text>
             {combined.orders.map((order) => (
               <s-text key={order.id}>
@@ -296,6 +342,7 @@ function Extension() {
               </s-text>
             ))}
             <s-text>Recipient: {combined.consignee?.name || "—"}</s-text>
+            <s-text>Phone: {combined.consignee?.phone || "—"}</s-text>
             <s-text>
               Destination: {[combined.consignee?.address1, combined.consignee?.city, combined.consignee?.zip]
                 .filter(Boolean)
@@ -331,7 +378,7 @@ function Extension() {
         slot="primary-action"
         onClick={bookShipment}
         loading={submitting}
-        disabled={submitting || loading || selectedOrderIds.length < 1 || !combined}
+        disabled={submitting || loading || selectedOrderIds.length < 1 || !combined || !addressValid}
       >
         {submitting ? "Booking…" : "Confirm & Book InstaWorld"}
       </s-button>
