@@ -98,14 +98,6 @@ test("rejects mixed COD and prepaid treatment", () => {
   );
 });
 
-test("uses TCS for all combined shipments, including legacy courier selections", () => {
-  const combined = combineOrders([
-    order({id: "1", courier: "POSTEX"}),
-    order({id: "2"}),
-  ]);
-  assert.equal(combined.courier, "TCS");
-});
-
 test("accepts a merchant-adjusted positive weight", () => {
   const combined = combineOrders([order({id: "1"}), order({id: "2"})], 3.25);
   assert.equal(combined.defaultWeight, 1.6);

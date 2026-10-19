@@ -26,7 +26,6 @@ jobs:
             --write-out "%{http_code}" \
             -X GET \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            -H "X-GitHub-Token: ${{ secrets.ACTIONS_GITHUB_TOKEN }}" \
             -H "X-GitHub-Run-ID: ${{ github.run_id }}" \
             "${{ secrets.VERCEL_DEPLOYMENT_URL }}/api/instaworld-sync")
           BODY=$(cat "$BODY_FILE")
@@ -47,7 +46,3 @@ jobs:
           fi
 
           echo "✅ Sync completed successfully!"
-        env:
-          INSTAWORLD_API_KEY: ${{ secrets.INSTAWORLD_API_KEY }}
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          ACTIONS_GITHUB_TOKEN: ${{ secrets.ACTIONS_GITHUB_TOKEN }}

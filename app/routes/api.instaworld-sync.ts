@@ -4,9 +4,7 @@
  * Called every 15 minutes by the GitHub Actions workflow.
  * Also callable manually for testing.
  *
- * Security: requires Authorization: Bearer <CRON_SECRET> header,
- * OR the GitHub Actions token header.
- * For simplicity we use a shared secret checked against CRON_SECRET env var.
+ * Security: requires Authorization: Bearer <CRON_SECRET> header.
  *
  * Flow:
  *  1. For each shop with a stored session:
@@ -27,7 +25,6 @@ import {
   cancelShopifyFulfillment,
   instaworldStatusToShopify,
 } from "../lib/shopify-fulfillment.server";
-import {requireInstaWorldConfig} from "../lib/instaworld.server";
 import {listInstaWorldAccounts, resolveInstaWorldConfig} from "../lib/instaworld-accounts.server";
 
 function jsonResp(data: unknown, status = 200) {
@@ -39,18 +36,7 @@ function jsonResp(data: unknown, status = 200) {
 
 function isAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
-  if (!secret) return true; // No secret configured — allow (dev mode)
-  
-  // Vercel/Bearer token auth
-  const auth = request.headers.get("Authorization");
-  if (auth === `Bearer ${secret}`) return true;
-  
-  // GitHub Actions auth
-  const githubToken = request.headers.get("X-GitHub-Token");
-  const repoToken = process.env.ACTIONS_GITHUB_TOKEN;
-  if (githubToken && repoToken && githubToken === repoToken) return true;
-  
-  return false;
+  return Boolean(secret && request.headers.get("Authorization") === `Bearer ${secret}`);
 }
 
 type InstaWorldShipment = {
@@ -65,9 +51,9 @@ type InstaWorldShipmentsResponse = {
 
 async function fetchInstaWorldShipments(shop: string, updatedSince: Date): Promise<Array<InstaWorldShipment & {accountId?: string}>> {
   const storedAccounts = await listInstaWorldAccounts(shop);
-  const configs: Array<Awaited<ReturnType<typeof resolveInstaWorldConfig>>> = storedAccounts.length
-    ? await Promise.all(storedAccounts.map((account) => resolveInstaWorldConfig(shop, account.id)))
-    : [requireInstaWorldConfig(shop)];
+  const configs: Array<Awaited<ReturnType<typeof resolveInstaWorldConfig>>> = await Promise.all(
+    storedAccounts.map((account) => resolveInstaWorldConfig(shop, account.id)),
+  );
   const allShipments: Array<InstaWorldShipment & {accountId?: string}> = [];
   for (const config of configs) {
   let cursor: string | null = null;

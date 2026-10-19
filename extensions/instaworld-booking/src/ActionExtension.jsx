@@ -7,7 +7,13 @@ import {useEffect, useState} from "preact/hooks";
  * origin — `window.location.origin` inside the Admin extension sandbox resolves
  * to the extension CDN origin, not the app server.
  */
-const APP_URL = "https://app.talwarstore.com";
+const APP_URL = "https://instaworld.barriovibe.com";
+
+class ApiError extends Error {
+  /** @type {string[]} */
+  orderNumbers = [];
+  orderNumber = "";
+}
 
 function formatMoney(amount, currency) {
   const numeric = Number(amount);
@@ -31,6 +37,7 @@ async function getAuthHeaders() {
 
 async function readApiResponse(response, fallbackMessage) {
   const text = await response.text();
+  /** @type {any} */
   let payload = {};
   try {
     payload = text ? JSON.parse(text) : {};
@@ -52,7 +59,7 @@ async function readApiResponse(response, fallbackMessage) {
     const orderNumbers = Array.isArray(payload.orderNumbers)
       ? payload.orderNumbers
       : Object.values(payload.orderNumbers || {});
-    const error = new Error(messages[payload.code] || rawMessage);
+    const error = new ApiError(messages[payload.code] || rawMessage);
     error.orderNumbers = [...new Set([payload.orderNumber, ...orderNumbers].filter(Boolean))];
     error.orderNumber = error.orderNumbers[0] || "";
     throw error;
@@ -128,8 +135,9 @@ function Extension() {
       // Weight is always fixed at 0.8 kg
       setCityWarning(payload.cityWarning || "");
     } catch (previewError) {
-      const orderNumbers = previewError?.orderNumbers || [];
-      const orderNumber = previewError?.orderNumber || selectedOrders.find((order) => order.id === currentOrderId)?.orderNumber;
+      const apiError = previewError instanceof ApiError ? previewError : null;
+      const orderNumbers = apiError?.orderNumbers || [];
+      const orderNumber = apiError?.orderNumber || selectedOrders.find((order) => order.id === currentOrderId)?.orderNumber;
       if (orderNumber) setSelectedOrders([{id: currentOrderId, orderNumber}]);
       const orderLabel = orderNumbers.length > 1
         ? `Orders ${orderNumbers.map((number) => `#${number}`).join(", ")}: `
@@ -199,7 +207,7 @@ function Extension() {
       });
       const payload = await readApiResponse(response, "Booking failed.");
       if (!payload.success) {
-        const bookingFailure = new Error(payload?.message || "Booking failed.");
+        const bookingFailure = new ApiError(payload?.message || "Booking failed.");
         bookingFailure.orderNumbers = Array.isArray(payload.orderNumbers)
           ? payload.orderNumbers
           : Object.values(payload.orderNumbers || {});
@@ -208,8 +216,9 @@ function Extension() {
       }
       setMessage(`Shipment booked successfully. Tracking number: ${payload.trackingNumber}`);
     } catch (bookingError) {
-      const orderNumbers = bookingError?.orderNumbers || [];
-      const orderNumber = bookingError?.orderNumber || selectedOrders.find((order) => order.id === currentOrderId)?.orderNumber;
+      const apiError = bookingError instanceof ApiError ? bookingError : null;
+      const orderNumbers = apiError?.orderNumbers || [];
+      const orderNumber = apiError?.orderNumber || selectedOrders.find((order) => order.id === currentOrderId)?.orderNumber;
       const orderLabel = orderNumbers.length > 1
         ? `Orders ${orderNumbers.map((number) => `#${number}`).join(", ")}: `
         : orderNumber
@@ -230,17 +239,18 @@ function Extension() {
         </s-text>
 
         {accounts.length > 1 && (
-          <s-select label="Book with InstaWorld account" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
+          <s-select label="Book with InstaWorld account" value={accountId} onChange={(event) => setAccountId(event.currentTarget.value)}>
             {accounts.map((account) => <s-option key={account.id} value={account.id}>{account.name} · {account.mode}</s-option>)}
           </s-select>
         )}
 
         <s-stack direction="inline" gap="base">
-          <input
-            type="search"
+          <s-search-field
+            label="Search orders"
+            labelAccessibilityVisibility="exclusive"
             value={search}
             placeholder="Search by order number"
-            onInput={(event) => setSearch(event.target.value)}
+            onInput={(event) => setSearch(event.currentTarget.value)}
           />
           <s-button onClick={searchOrders} loading={searching} disabled={searching}>
             Search

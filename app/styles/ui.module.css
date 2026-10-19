@@ -1,0 +1,11 @@
+.pageContent {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.uploadZone { border: 1px dashed #8c9196; border-radius: 12px; padding: 22px; background: #f6f6f7; }
+.fileInput { width: 100%; box-sizing: border-box; padding: 12px; border: 1px solid #c9cccf; border-radius: 8px; background: #fff; color: #202223; }
+.fileName { margin-top: 10px; }
+.accountForm { display: grid; gap: 16px; }
+.helperCard { border-radius: 10px; }
+.statusMessage { margin-bottom: 12px; }

@@ -1,88 +1,86 @@
 import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
 import test from "node:test";
 
 import {
-  getInstaWorldConfig,
-  requireInstaWorldConfig,
+  findShipmentByReference,
+  INSTAWORLD_API_BASE_URL,
+  type InstaWorldConfig,
 } from "../app/lib/instaworld.server.ts";
+import {discoverInstaWorldAccount} from "../app/lib/instaworld-accounts.server.ts";
 
-const ENV_KEYS = [
-  "INSTAWORLD_TEST_SHOPS",
-  "INSTAWORLD_TEST_API_KEY",
-  "INSTAWORLD_TEST_LOCATION_ID",
-  "INSTAWORLD_API_KEY",
-  "INSTAWORLD_LOCATION_ID",
-] as const;
+const accountConfig: InstaWorldConfig = {
+  account: "live",
+  apiKey: "store-specific-key",
+  baseUrl: INSTAWORLD_API_BASE_URL,
+  locationId: 9876,
+  refPrefix: "",
+};
 
-function withEnv(values: Record<string, string | undefined>, callback: () => void) {
-  const previous = Object.fromEntries(ENV_KEYS.map((key) => [key, process.env[key]]));
+test("courier requests use the explicitly selected store account", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestUrl = "";
+  let authorization = "";
+  globalThis.fetch = async (input, init) => {
+    requestUrl = String(input);
+    authorization = new Headers(init?.headers).get("Authorization") || "";
+    return new Response(JSON.stringify({data: []}), {
+      status: 200,
+      headers: {"Content-Type": "application/json"},
+    });
+  };
+
   try {
-    for (const key of ENV_KEYS) {
-      if (key in values) {
-        if (values[key] === undefined) delete process.env[key];
-        else process.env[key] = values[key];
-      }
-    }
-    callback();
+    await findShipmentByReference("1001", accountConfig);
   } finally {
-    for (const key of ENV_KEYS) {
-      if (previous[key] === undefined) delete process.env[key];
-      else process.env[key] = previous[key];
-    }
+    globalThis.fetch = originalFetch;
   }
-}
 
-test("selects test InstaWorld credentials for the configured development shop", () => {
-  withEnv(
-    {
-      INSTAWORLD_TEST_SHOPS: "talwar-instaworld.myshopify.com",
-      INSTAWORLD_TEST_API_KEY: "test-key",
-      INSTAWORLD_TEST_LOCATION_ID: "9876",
-      INSTAWORLD_API_KEY: "live-key",
-      INSTAWORLD_LOCATION_ID: "1234",
-    },
-    () => {
-      const config = requireInstaWorldConfig("talwar-instaworld.myshopify.com");
-      assert.equal(config.account, "test");
-      assert.equal(config.apiKey, "test-key");
-      assert.equal(config.locationId, 9876);
-    },
-  );
+  assert.equal(requestUrl, `${INSTAWORLD_API_BASE_URL}/shipments?ref_no=1001`);
+  assert.equal(authorization, "Bearer store-specific-key");
 });
 
-test("keeps the live account for shops not listed as test shops", () => {
-  withEnv(
-    {
-      INSTAWORLD_TEST_SHOPS: "talwar-instaworld.myshopify.com",
-      INSTAWORLD_TEST_API_KEY: "test-key",
-      INSTAWORLD_TEST_LOCATION_ID: "9876",
-      INSTAWORLD_API_KEY: "live-key",
-      INSTAWORLD_LOCATION_ID: "1234",
-    },
-    () => {
-      const config = requireInstaWorldConfig("talwarstore.myshopify.com");
-      assert.equal(config.account, "live");
-      assert.equal(config.apiKey, "live-key");
-      assert.equal(config.locationId, 1234);
-    },
-  );
+test("the InstaWorld client has no environment credential fallback", () => {
+  const clientSource = readFileSync("app/lib/instaworld.server.ts", "utf8");
+  const accountSource = readFileSync("app/lib/instaworld-accounts.server.ts", "utf8");
+  const forbiddenVariables = [
+    "INSTAWORLD_API_KEY",
+    "INSTAWORLD_LOCATION_ID",
+    "INSTAWORLD_TEST_API_KEY",
+    "INSTAWORLD_TEST_LOCATION_ID",
+    "INSTAWORLD_TEST_SHOPS",
+  ];
+
+  for (const variable of forbiddenVariables) {
+    assert.ok(!clientSource.includes(variable), `${variable} must not be read by the API client`);
+    assert.ok(!accountSource.includes(variable), `${variable} must not be read by the account resolver`);
+  }
+  assert.match(accountSource, /No InstaWorld account is connected for this store/);
 });
 
-test("never falls back to live credentials when the test account is incomplete", () => {
-  withEnv(
-    {
-      INSTAWORLD_TEST_SHOPS: "talwar-instaworld.myshopify.com",
-      INSTAWORLD_TEST_API_KEY: undefined,
-      INSTAWORLD_TEST_LOCATION_ID: undefined,
-      INSTAWORLD_API_KEY: "live-key",
-      INSTAWORLD_LOCATION_ID: "1234",
-    },
-    () => {
-      assert.throws(
-        () => requireInstaWorldConfig("talwar-instaworld.myshopify.com"),
-        /INSTAWORLD_TEST_API_KEY/,
-      );
-      assert.equal(getInstaWorldConfig("talwar-instaworld.myshopify.com").account, "test");
-    },
-  );
+test("one API key discovers its account, locations, and attached couriers", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const path = new URL(String(input)).pathname;
+    const data = path.endsWith("/locations")
+      ? [{id: 42, name: "Main pickup", address: "Street 1", city: "Lahore", is_default: true, couriers: [{id: 7, name: "Courier A", status: "active"}]}]
+      : path.endsWith("/me")
+        ? {id: "merchant-9", business_name: "Example Merchant", email: "owner@example.test", api_key: "must-not-be-stored", couriers: [{id: 8, name: "Courier B", enabled: true}]}
+          : null;
+    return data
+      ? new Response(JSON.stringify({data}), {status: 200, headers: {"Content-Type": "application/json"}})
+      : new Response(JSON.stringify({error: {code: "not_found"}}), {status: 404, headers: {"Content-Type": "application/json"}});
+  };
+
+  try {
+    const snapshot = await discoverInstaWorldAccount("one-store-key");
+    assert.equal(snapshot.name, "Example Merchant");
+    assert.equal(snapshot.externalAccountId, "merchant-9");
+    assert.equal(snapshot.locationId, 42);
+    assert.deepEqual(snapshot.locations.map(({id, name}) => ({id, name})), [{id: 42, name: "Main pickup"}]);
+    assert.deepEqual(snapshot.couriers.map(({name}) => name).sort(), ["Courier A", "Courier B"]);
+    assert.equal("api_key" in snapshot.details, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

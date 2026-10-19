@@ -13,7 +13,6 @@ import {
   findShipmentByReference,
   isDeliveredShipment,
   normaliseCity,
-  requireInstaWorldConfig,
 } from "../lib/instaworld.server";
 import { verifyDeliveryAddress } from "../lib/address-validation.server";
 import { authenticate } from "../shopify.server";
@@ -158,6 +157,10 @@ export async function action({ request }: ActionFunctionArgs) {
       );
     }
 
+    stage = "InstaWorld account selection";
+    const selectedAccountId = typeof body?.accountId === "string" ? body.accountId : undefined;
+    const config = await resolveInstaWorldConfig(session.shop, selectedAccountId);
+
     stage = "Shopify order retrieval";
     const orders = await getShopifyOrders(admin, orderIds);
 
@@ -200,7 +203,7 @@ export async function action({ request }: ActionFunctionArgs) {
           const matchingCandidates = candidateOrders.filter((candidate) => hasReliableCustomerMatch(orders[0], candidate));
           const undeliveredCandidates = await Promise.all(matchingCandidates.map(async (candidate) => {
             try {
-              const existingShipment = await findShipmentByReference(candidate.orderNumber, session.shop);
+              const existingShipment = await findShipmentByReference(candidate.orderNumber, config);
               return existingShipment && isDeliveredShipment(existingShipment) ? null : candidate;
             } catch (shipmentLookupError) {
               console.warn(`[InstaWorld orders API] delivery lookup failed for #${candidate.orderNumber}`, shipmentLookupError);
@@ -238,7 +241,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
     // Check if InstaWorld services the destination city — non-blocking warning
     stage = "InstaWorld city serviceability check";
-    const cityWarning = await checkCityServiceable(combined.consignee.city ?? "", session.shop, typeof body?.accountId === "string" ? body.accountId : undefined);
+    const cityWarning = await checkCityServiceable(combined.consignee.city ?? "", session.shop, selectedAccountId);
 
     return json({
       combined,

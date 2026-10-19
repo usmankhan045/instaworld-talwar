@@ -27,7 +27,6 @@ export type CombinedOrder = {
   defaultWeight: number;
   payment: PaymentSummary;
   consignee: NonNullable<ShopifyOrder["shippingAddress"]>;
-  courier: "TCS" | "POSTEX" | null;
 };
 
 function normalized(value: string | null | undefined) {
@@ -180,6 +179,5 @@ export function combineOrders(
       currencyCode,
     },
     consignee: firstAddress,
-    courier: "TCS",
   };
 }

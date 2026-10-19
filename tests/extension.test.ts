@@ -32,7 +32,7 @@ const SOURCE = readFileSync(SOURCE_PATH, "utf8");
 const BULK_SOURCE_PATH = "extensions/instaworld-booking/src/BulkBookExtension.jsx";
 const BULK_SOURCE = readFileSync(BULK_SOURCE_PATH, "utf8");
 
-const EXPECTED_APP_URL = "https://app.talwarstore.com";
+const EXPECTED_APP_URL = "https://instaworld.barriovibe.com";
 
 // ---------------------------------------------------------------------------
 // 1. Entry-point export form

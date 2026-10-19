@@ -14,7 +14,7 @@ import {
   normaliseCity,
   replaceCityInAddress,
   truncate,
-  requireInstaWorldConfig,
+  type InstaWorldConfig,
   type InstaWorldRequest,
 } from "./instaworld.server";
 import {createShopifyFulfillment} from "./shopify-fulfillment.server";
@@ -50,7 +50,7 @@ function splitName(full: string): {first_name: string; last_name?: string} {
   return {first_name, last_name};
 }
 
-async function releaseReservationsForCancelledShipments(shop: string, orderIds: string[], selectedConfig?: Parameters<typeof findShipmentByReference>[2]) {
+async function releaseReservationsForCancelledShipments(shop: string, orderIds: string[], config: InstaWorldConfig) {
   const activeReservations = await prisma.orderReservation.findMany({
     where: {
       shop,
@@ -79,7 +79,7 @@ async function releaseReservationsForCancelledShipments(shop: string, orderIds: 
       continue;
     }
 
-    const remote = await findShipmentByReference(attempt.shipment.refNo, shop, selectedConfig);
+    const remote = await findShipmentByReference(attempt.shipment.refNo, config);
     if (remote && isCancelledShipment(remote)) cancelledAttemptIds.add(attempt.id);
   }
 
@@ -182,7 +182,7 @@ export async function bookCombinedOrders(
   });
   const cancelledLinkedOrderIds = new Set<string>();
   for (const link of existingLinks) {
-    const remote = await findShipmentByReference(link.shipment.refNo, shop, config);
+    const remote = await findShipmentByReference(link.shipment.refNo, config);
     if (remote && !isCancelledShipment(remote)) {
       throw new Error(`Order #${link.shopifyOrderNumber} is already booked in InstaWorld.`);
     }
@@ -341,7 +341,7 @@ export async function bookCombinedOrders(
   });
 
   try {
-    const existing = await findShipmentByReference(refNo, shop, config);
+    const existing = await findShipmentByReference(refNo, config);
     if (existing && !isCancelledShipment(existing)) {
       return await finalizeSuccessfulBooking(shop, attempt.id, existing.trackingNumber, orders, admin);
     }
@@ -355,7 +355,7 @@ export async function bookCombinedOrders(
       data: {status: "submitting"},
     });
 
-    const result = await createShipment(requestPayload, idempotencyKey, shop, config);
+    const result = await createShipment(requestPayload, idempotencyKey, config);
     return await finalizeSuccessfulBooking(shop, attempt.id, result.trackingNumber, orders, admin);
   } catch (error) {
     const status = typeof error === "object" && error && "status" in error ? Number(error.status) : null;
@@ -421,7 +421,8 @@ export async function recoverBookingAttempt(shop: string, attemptId: string) {
     id: reservation.shopifyOrderId,
     orderNumber: reservation.shopifyOrderId,
   }));
-  const existing = await findShipmentByReference(attempt.shipment.refNo, shop);
+  const config = await resolveInstaWorldConfig(shop, attempt.shipment.instaworldAccountId ?? undefined);
+  const existing = await findShipmentByReference(attempt.shipment.refNo, config);
   if (existing && !isCancelledShipment(existing)) {
     return finalizeSuccessfulBooking(shop, attemptId, existing.trackingNumber, sourceOrders);
   }
@@ -429,7 +430,7 @@ export async function recoverBookingAttempt(shop: string, attemptId: string) {
   const result = await createShipment(
     JSON.parse(attempt.requestPayload) as InstaWorldRequest,
     attempt.idempotencyKey,
-    shop,
+    config,
   );
   return finalizeSuccessfulBooking(shop, attemptId, result.trackingNumber, sourceOrders);
 }

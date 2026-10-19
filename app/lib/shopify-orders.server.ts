@@ -1,8 +1,6 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import {PRODUCT_COLORS_BY_HANDLE} from "./product-colors.server.ts";
-
 type ShopifyAdminGraphql = {
   graphql: (
     query: string,
@@ -39,7 +37,6 @@ export type ShopifyOrder = {
     country: string | null;
     countryCode: string | null;
   } | null;
-  courier?: "TCS" | "POSTEX" | null;
   lineItems: Array<{
     id: string;
     title: string;
@@ -101,10 +98,6 @@ const ORDER_FIELDS = `
     country
     countryCodeV2
   }
-  customAttributes {
-    key
-    value
-  }
   lineItems(first: 250) {
     edges {
       node {
@@ -113,11 +106,12 @@ const ORDER_FIELDS = `
         sku
         quantity
         product {
-          handle
-          title
           color: metafield(namespace: "custom", key: "color") {
             value
           }
+        }
+        variant {
+          title
         }
         originalUnitPriceSet {
           shopMoney {
@@ -150,27 +144,11 @@ function assertGraphqlSuccess<T>(result: GraphqlResponse<T>): T {
   return result.data;
 }
 
-function hamtaaLineItem(item: any): {title: string; color: string | null} | null {
-  const handle = String(item.product?.handle ?? "");
-  const match = /^(handmade|slub)-hamtaa-cloth(?:-|$)/.exec(handle);
-  if (!match) return null;
-
-  const title = match[1] === "slub" ? "Slub Hamtaa Cloth" : "Handmade Hamtaa Cloth";
-  const originalTitle = String(item.title ?? "").trim();
-  const currentTitle = String(item.product?.title ?? "").trim();
-  const colorFromTitle = (value: string) => {
-    if (!value || value.toLowerCase() === title.toLowerCase()) return null;
-    const suffix = value.match(new RegExp(`^${title}\\s*[-–—:]\\s*(.+)$`, "i"));
-    return suffix?.[1]?.trim() || (!/hamtaa\s+cloth/i.test(value) ? value : null);
-  };
-
-  return {
-    title,
-    color: String(item.product?.color?.value ?? "").trim()
-      || PRODUCT_COLORS_BY_HANDLE[handle]
-      || colorFromTitle(originalTitle)
-      || colorFromTitle(currentTitle),
-  };
+function productDetail(item: any): string | null {
+  const metafield = String(item.product?.color?.value ?? "").trim();
+  if (metafield) return metafield;
+  const variantTitle = String(item.variant?.title ?? "").trim();
+  return variantTitle && variantTitle.toLowerCase() !== "default title" ? variantTitle : null;
 }
 
 function parseOrder(node: any): ShopifyOrder {
@@ -182,10 +160,6 @@ function parseOrder(node: any): ShopifyOrder {
     amount: String(value?.shopMoney?.amount ?? ""),
     currencyCode: String(value?.shopMoney?.currencyCode ?? ""),
   });
-
-  const courierValue = String(
-    node.customAttributes?.find((attribute: any) => attribute.key === "delivery_courier")?.value || "",
-  ).toUpperCase();
 
   return {
     id: String(node.id),
@@ -213,19 +187,13 @@ function parseOrder(node: any): ShopifyOrder {
           countryCode: node.shippingAddress.countryCodeV2 ?? null,
         }
       : null,
-    courier: courierValue === "TCS" || courierValue === "POSTEX" ? courierValue : null,
     lineItems: (node.lineItems?.edges ?? []).map(({ node: item }: any) => {
-      const hamtaa = hamtaaLineItem(item);
       return {
         id: String(item.id),
-        title: hamtaa?.title ?? String(item.title || "Product"),
+        title: String(item.title || "Product"),
         sku: item.sku ?? null,
         quantity: Number(item.quantity),
-        color: hamtaa?.color ?? (item.product?.color?.value
-          ? String(item.product.color.value)
-          : item.product?.handle
-            ? PRODUCT_COLORS_BY_HANDLE[String(item.product.handle)]
-            : null) ?? null,
+        color: productDetail(item),
         unitPrice: shopMoney(item.originalUnitPriceSet),
         totalPrice: shopMoney(item.discountedTotalSet),
       };

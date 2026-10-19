@@ -2,7 +2,13 @@ import "@shopify/ui-extensions/preact";
 import {render} from "preact";
 import {useState} from "preact/hooks";
 
-const APP_URL = "https://app.talwarstore.com";
+const APP_URL = "https://instaworld.barriovibe.com";
+
+class ApiError extends Error {
+  /** @type {string[]} */
+  orderNumbers = [];
+  orderNumber = "";
+}
 
 async function getAuthHeaders() {
   const token = await shopify.auth.idToken();
@@ -10,8 +16,14 @@ async function getAuthHeaders() {
   return {Authorization: `Bearer ${token}`};
 }
 
+/**
+ * @param {Response} response
+ * @param {string} fallbackMessage
+ * @param {number[]} allowedErrorStatuses
+ */
 async function readApiResponse(response, fallbackMessage, allowedErrorStatuses = []) {
   const text = await response.text();
+  /** @type {any} */
   let payload = {};
   try {
     payload = text ? JSON.parse(text) : {};
@@ -33,7 +45,7 @@ async function readApiResponse(response, fallbackMessage, allowedErrorStatuses =
     const orderNumbers = Array.isArray(payload.orderNumbers)
       ? payload.orderNumbers
       : Object.values(payload.orderNumbers || {});
-    const error = new Error(messages[payload.code] || rawMessage);
+    const error = new ApiError(messages[payload.code] || rawMessage);
     error.orderNumbers = [...new Set([payload.orderNumber, ...orderNumbers].filter(Boolean))];
     error.orderNumber = error.orderNumbers[0] || "";
     throw error;
@@ -56,7 +68,7 @@ function BulkBookExtension() {
   const [results, setResults] = useState(
     selectedOrders.map((o) => ({
       orderId: o.id,
-      orderNumber: o.orderNumber || o.name?.replace(/^#/, "") || "Order number unavailable",
+      orderNumber: "Order number unavailable",
       status: "pending",
     })),
   );
@@ -144,7 +156,7 @@ function BulkBookExtension() {
           });
         }
       } catch (err) {
-        const orderNumber = err?.orderNumber;
+        const orderNumber = err instanceof ApiError ? err.orderNumber : "";
         updateResult(orderId, {
           ...(orderNumber ? {orderNumber} : {}),
           status: "error",
@@ -171,12 +183,12 @@ function BulkBookExtension() {
         {!running && !done && (
           <s-text>
             Each order will be checked and booked individually. Already-booked or non-serviceable
-            orders will be skipped automatically. PostEx orders are left for separate booking.
+            orders will be skipped automatically.
           </s-text>
         )}
 
         {/* Per-order status list */}
-        <s-stack direction="block" gap="tight">
+        <s-stack direction="block" gap="base">
           {results.map((r) => (
             <s-stack key={r.orderId} direction="inline" gap="base">
               <s-text>

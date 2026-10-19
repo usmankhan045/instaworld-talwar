@@ -505,7 +505,7 @@ async function geocodeNominatim(query: string): Promise<GeocodeCandidate[]> {
     `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}` +
     "&format=json&limit=5&addressdetails=1&countrycodes=pk";
   const response = await fetch(url, {
-    headers: {"User-Agent": "InstaWorld-Booking/1.0 (contact: admin@talwarstore.com)"},
+    headers: {"User-Agent": `InstaWorld-Booking/1.0 (contact: ${process.env.APP_CONTACT_EMAIL || "support@barriovibe.com"})`},
     signal: AbortSignal.timeout(6000),
   });
   if (!response.ok) return [];

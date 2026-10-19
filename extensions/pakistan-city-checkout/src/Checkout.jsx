@@ -69,7 +69,7 @@ function Extension() {
         <s-option value="" disabled>Select a city</s-option>
         {filteredCities.map((city) => <s-option key={city} value={city}>{city}</s-option>)}
       </s-select>
-      <s-text tone="neutral">All website orders are delivered through TCS.</s-text>
+      <s-text tone="neutral">Delivery is handled through the store’s configured courier account.</s-text>
     </s-section>
   );
 }

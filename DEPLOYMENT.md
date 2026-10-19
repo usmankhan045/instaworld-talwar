@@ -1,4 +1,4 @@
-# Deployment Guide — instaworld-talwar on Vercel + Neon PostgreSQL
+# Deployment Guide — InstaWorld Booking on Vercel + Neon PostgreSQL
 
 ## Prerequisites
 
@@ -27,25 +27,15 @@ Set these for all environments (Production, Preview, Development):
 | `INSTAWORLD_CREDENTIALS_ENCRYPTION_KEY` | A random 32-byte base64 or 64-character hex key | Encrypts InstaWorld API keys saved from the dashboard; keep stable and private |
 | `SHOPIFY_API_KEY` | Shopify Partners → App → API credentials | **Must not be empty** |
 | `SHOPIFY_API_SECRET` | Shopify Partners → App → API credentials | **Must not be empty** |
-| `SHOPIFY_APP_URL` | `https://app.talwarstore.com` | **Must equal the production Vercel URL exactly** — the Admin UI Extension hardcodes this URL as its fetch base; any mismatch will cause extension API calls to fail |
+| `SHOPIFY_APP_URL` | `https://instaworld.barriovibe.com` | **Must equal the production Vercel URL exactly** — the Admin UI Extension uses this URL as its fetch base |
 | `SCOPES` | `read_orders,read_products` | Required because booking reads product metafields from order line items |
-| `INSTAWORLD_API_KEY` | InstaWorld merchant portal | |
-| `INSTAWORLD_BASE_URL` | `https://one-be.instaworld.pk/merchant-api/v2` | Default is already set in .env.example |
-| `INSTAWORLD_LOCATION_ID` | InstaWorld merchant portal | |
-| `INSTAWORLD_ENABLE_LIVE` | **`false`** | **Keep disabled** until API contract is verified |
-| `INSTAWORLD_CONTRACT_CONFIRMED` | **`false`** | **Keep disabled** |
-| `INSTAWORLD_IDEMPOTENCY_CONFIRMED` | **`false`** | **Keep disabled** |
-| `INSTAWORLD_REF_PREFIX` | Per InstaWorld contract | |
-| `INSTAWORLD_REF_MAX_LENGTH` | Per InstaWorld contract | |
-| `INSTAWORLD_REF_PATTERN` | Per InstaWorld contract | |
-| `INSTAWORLD_COD_PAYMENT_TYPE` | Per InstaWorld contract | |
-| `INSTAWORLD_PREPAID_PAYMENT_TYPE` | Per InstaWorld contract | |
-| `INSTAWORLD_TEST_SHOPS` | `talwar-instaworld.myshopify.com` | Shopify shops that must use the test account; comma-separated for multiple shops |
-| `INSTAWORLD_TEST_API_KEY` | InstaWorld test account | Required for every shop listed in `INSTAWORLD_TEST_SHOPS` |
-| `INSTAWORLD_TEST_BASE_URL` | `https://one-be.instaworld.pk/merchant-api/v2` | Test account API base URL |
-| `INSTAWORLD_TEST_LOCATION_ID` | InstaWorld test account | Required test-account location ID |
-| `INSTAWORLD_TEST_REF_PREFIX` | `TEST-` | Keeps test shipment references separate from live references |
+| `APP_CONTACT_EMAIL` | Your support email | Used in the address verification service user agent |
 | `GEOCODE_MAPS_API_KEY` | geocode.maps.co | **Required for strict production address verification**; do not leave blank in Vercel |
+
+Do not add an InstaWorld API key or location ID to Vercel. Each Shopify store
+connects its own API key from **App → Accounts** after installation. The server
+detects the account identity, pickup locations, and available couriers, then
+stores the key encrypted and all retrieved data scoped to that shop.
 
 ---
 
@@ -101,7 +91,7 @@ npm run setup && npm run build
 
 ## First Deploy Checklist
 
-- [ ] Set **all** environment variables in Vercel dashboard — especially `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, and `SHOPIFY_APP_URL=https://app.talwarstore.com` (blank values cause HTTP 500 on every request)
+- [ ] Set **all** environment variables in Vercel dashboard — especially `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, and `SHOPIFY_APP_URL=https://instaworld.barriovibe.com` (blank values cause HTTP 500 on every request)
 - [ ] Deploy app to Vercel (`git push` or Vercel CLI)
 - [ ] Run `npx prisma migrate deploy` manually (see above)
 - [ ] Verify Neon console shows all 6 tables: `Session`, `OrderBooking`, `Shipment`, `ShipmentOrder`, `BookingAttempt`, `OrderReservation`
@@ -109,7 +99,7 @@ npm run setup && npm run build
 - [ ] Run `npm run deploy` (or `shopify app deploy`) to upload the extension bundle to Shopify's CDN
 - [ ] In Shopify Partners dashboard, confirm the extension version is **Active**
 - [ ] Open a test order in the Shopify Admin and verify the **InstaWorld Booking** action button appears
-- [ ] Confirm `INSTAWORLD_ENABLE_LIVE=false` — no live shipments should be created
+- [ ] Open **App → Accounts** and connect the installed store's own InstaWorld API key
 - [ ] Confirm `GEOCODE_MAPS_API_KEY` is set — bookings are blocked when an address cannot be verified
 
 ---
@@ -133,17 +123,12 @@ This is safe for Docker because the container has full `DATABASE_URL` access at 
 
 ---
 
-## InstaWorld Safety Gates
+## Store-scoped InstaWorld credentials
 
-All live-booking safety gates are **disabled by default** and must be explicitly enabled in the environment:
-
-```
-INSTAWORLD_ENABLE_LIVE=false           # master switch
-INSTAWORLD_CONTRACT_CONFIRMED=false    # requires API contract verification
-INSTAWORLD_IDEMPOTENCY_CONFIRMED=false # requires idempotency test with InstaWorld
-```
-
-Do not enable these until the merchant API contract has been verified and a controlled live test has been authorized.
+`INSTAWORLD_CREDENTIALS_ENCRYPTION_KEY` is an application encryption secret. It
+does not grant access to any courier account. Keep the same value across deploys
+so saved merchant keys remain decryptable. Every courier request requires an
+account record whose `shop` matches the authenticated Shopify shop.
 
 ---
 
@@ -156,7 +141,7 @@ The `instaworld-booking` Admin UI Extension communicates with the app server (Ve
 3. **Server-side validation** — `authenticate.admin(request)` in `@shopify/shopify-app-react-router` validates the ID token signature using Shopify's public JWKS. No code changes are needed on the server side.
 
 > **Why not `window.location.origin`?**  
-> Inside the Admin extension sandbox, `window.location` reflects the extension CDN origin (e.g. `https://cdn.shopify.com`), **not** the Vercel app URL. All fetch calls must target `https://app.talwarstore.com` directly.
+> Inside the Admin extension sandbox, `window.location` reflects the extension CDN origin (e.g. `https://cdn.shopify.com`), **not** the Vercel app URL. All fetch calls must target `https://instaworld.barriovibe.com` directly.
 
 > **Why not `shopify.sessionToken()`?**  
 > The `sessionToken()` method does not exist in `@shopify/ui-extensions` 2026.x. The correct API is `shopify.auth.idToken()`, which returns a Promise resolving to a JWT string or `null`.

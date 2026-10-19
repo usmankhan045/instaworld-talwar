@@ -4,12 +4,11 @@ import test from "node:test";
 import {combineOrders} from "../app/lib/order-combination.server.ts";
 import {getShopifyOrders} from "../app/lib/shopify-orders.server.ts";
 
-test("Hamtaa shipment items put color only in Product Detail", async () => {
+test("shipment items use store product details without handle-specific mappings", async () => {
   const products = [
-    {title: "Half white", product: {handle: "handmade-hamtaa-cloth-canyon", title: "Handmade Hamtaa Cloth", color: null}},
-    {title: "Handmade Hamtaa Cloth", product: {handle: "handmade-hamtaa-cloth-pebble", title: "Handmade Hamtaa Cloth", color: {value: "Pebble Grey"}}},
-    {title: "Slub Hamtaa Cloth - Soft Ivory", product: {handle: "slub-hamtaa-cloth-soft-ivory", title: "Slub Hamtaa Cloth - Soft Ivory", color: null}},
-    {title: "Talwar Heritage Series — Slate Grey", product: {handle: "talwar-heritage-series-slate-grey", title: "Talwar Heritage Series — Slate Grey", color: {value: "Slate Grey"}}},
+    {title: "Classic Shirt", product: {color: null}, variant: {title: "Half white / Medium"}},
+    {title: "Leather Sandal", product: {color: {value: "Pebble Grey"}}, variant: {title: "Default Title"}},
+    {title: "Organic Jaggery", product: {color: null}, variant: {title: "Default Title"}},
   ];
   const node = {
     id: "gid://shopify/Order/1",
@@ -28,10 +27,9 @@ test("Hamtaa shipment items put color only in Product Detail", async () => {
 
   const [order] = await getShopifyOrders(admin, ["gid://shopify/Order/1"]);
   assert.deepEqual(order.lineItems.map(({title, color}) => ({title, color})), [
-    {title: "Handmade Hamtaa Cloth", color: "Half white"},
-    {title: "Handmade Hamtaa Cloth", color: "Pebble Grey"},
-    {title: "Slub Hamtaa Cloth", color: "Soft Ivory"},
-    {title: "Talwar Heritage Series — Slate Grey", color: "Slate Grey"},
+    {title: "Classic Shirt", color: "Half white / Medium"},
+    {title: "Leather Sandal", color: "Pebble Grey"},
+    {title: "Organic Jaggery", color: null},
   ]);
 
   const combined = combineOrders([{
@@ -45,9 +43,8 @@ test("Hamtaa shipment items put color only in Product Detail", async () => {
     },
   }]);
   assert.deepEqual(combined.items.map(({title, color}) => ({title, color})), [
-    {title: "Handmade Hamtaa Cloth", color: "Half white"},
-    {title: "Handmade Hamtaa Cloth", color: "Pebble Grey"},
-    {title: "Slub Hamtaa Cloth", color: "Soft Ivory"},
-    {title: "Talwar Heritage Series — Slate Grey", color: "Slate Grey"},
+    {title: "Classic Shirt", color: "Half white / Medium"},
+    {title: "Leather Sandal", color: "Pebble Grey"},
+    {title: "Organic Jaggery", color: null},
   ]);
 });

@@ -8,12 +8,14 @@ export type InstaWorldShipment = {
 };
 
 export type InstaWorldConfig = {
-  account: "live" | "test";
-  apiKey: string | undefined;
+  account: "live";
+  apiKey: string;
   baseUrl: string;
-  locationId: number | undefined;
+  locationId: number;
   refPrefix: string;
 };
+
+export const INSTAWORLD_API_BASE_URL = "https://one-be.instaworld.pk/merchant-api/v2";
 
 export const FIXED_SHIPMENT_WEIGHT_KG = 0.8;
 
@@ -410,65 +412,6 @@ export function allocateShipmentWeight(itemCount: number): number[] {
 // API client
 // ---------------------------------------------------------------------------
 
-const DEFAULT_BASE_URL = "https://one-be.instaworld.pk/merchant-api/v2";
-
-function configuredShops(value: string | undefined): Set<string> {
-  return new Set(
-    (value || "")
-      .split(",")
-      .map((shop) => shop.trim().toLowerCase())
-      .filter(Boolean),
-  );
-}
-
-export function getInstaWorldConfig(shop?: string): InstaWorldConfig {
-  const isTestShop = Boolean(
-    shop && configuredShops(process.env.INSTAWORLD_TEST_SHOPS).has(shop.toLowerCase()),
-  );
-
-  return isTestShop
-    ? {
-        account: "test",
-        apiKey: process.env.INSTAWORLD_TEST_API_KEY,
-        baseUrl: process.env.INSTAWORLD_TEST_BASE_URL || DEFAULT_BASE_URL,
-        locationId: process.env.INSTAWORLD_TEST_LOCATION_ID
-          ? Number(process.env.INSTAWORLD_TEST_LOCATION_ID)
-          : undefined,
-        refPrefix: process.env.INSTAWORLD_TEST_REF_PREFIX || "TEST-",
-      }
-    : {
-        account: "live",
-        apiKey: process.env.INSTAWORLD_API_KEY,
-        baseUrl: process.env.INSTAWORLD_BASE_URL || DEFAULT_BASE_URL,
-        locationId: process.env.INSTAWORLD_LOCATION_ID
-          ? Number(process.env.INSTAWORLD_LOCATION_ID)
-          : undefined,
-        refPrefix: process.env.INSTAWORLD_REF_PREFIX || "",
-      };
-}
-
-export function requireInstaWorldConfig(shop?: string): InstaWorldConfig {
-  const config = getInstaWorldConfig(shop);
-  if (!config.apiKey) {
-    throw new Error(
-      `InstaWorld ${config.account} account is not configured for ${shop || "this request"}. ` +
-        `Set ${config.account === "test" ? "INSTAWORLD_TEST_API_KEY" : "INSTAWORLD_API_KEY"}.`,
-    );
-  }
-  if (!Number.isInteger(config.locationId) || Number(config.locationId) <= 0) {
-    throw new Error(
-      `InstaWorld ${config.account} location is not configured for ${shop || "this request"}. ` +
-        `Set ${config.account === "test" ? "INSTAWORLD_TEST_LOCATION_ID" : "INSTAWORLD_LOCATION_ID"}.`,
-    );
-  }
-  return config;
-}
-
-export function buildStableReference(operationId: string, shop?: string): string {
-  const prefix = getInstaWorldConfig(shop).refPrefix;
-  return `${prefix}${operationId}`.slice(0, 200);
-}
-
 export function validateReference(refNo: string | null) {
   if (!refNo || refNo.length > 200) {
     throw new Error("The generated InstaWorld ref_no is empty or exceeds 200 characters.");
@@ -488,7 +431,6 @@ export function stringifyForInstaWorld(value: unknown): string {
 }
 
 async function request(path: string, config: InstaWorldConfig, init?: RequestInit) {
-  if (!config.apiKey) throw new Error(`InstaWorld ${config.account} API key is not configured.`);
   return fetch(`${config.baseUrl}${path}`, {
     ...init,
     headers: {
@@ -514,7 +456,7 @@ function extractErrorMessage(payload: any, status: number): string {
       .map((d: any) => `${d.field ?? ""} ${d.issue ?? ""}`.toLowerCase())
       .join("; ");
     if (detailText.includes("location_id") && detailText.includes("not_owned")) {
-      return "The configured InstaWorld location does not belong to this account. Check the test account's location ID.";
+      return "The detected InstaWorld location does not belong to the connected account. Reconnect the account with a valid API key.";
     }
     if (detailText.includes("city") && detailText.includes("not_serviceable")) {
       return "InstaWorld does not deliver to this city.";
@@ -535,7 +477,7 @@ function extractErrorMessage(payload: any, status: number): string {
       city_not_serviceable: "The destination city is not serviceable by InstaWorld.",
       invalid_phone: "The consignee phone number is invalid. Please update the shipping address.",
       location_not_owned: "The configured InstaWorld location ID does not belong to your account.",
-      invalid_api_key: "InstaWorld API key is invalid or revoked. Please update INSTAWORLD_API_KEY.",
+      invalid_api_key: "The connected InstaWorld API key is invalid or revoked. Reconnect the account from the Accounts page.",
       account_inactive: "Your InstaWorld account is inactive.",
       booking_failed: "No courier accepted the shipment. Please try again in a few minutes.",
       rate_limited: "InstaWorld rate limit reached. Please wait a moment and try again.",
@@ -551,10 +493,8 @@ function extractErrorMessage(payload: any, status: number): string {
 
 export async function findShipmentByReference(
   refNo: string,
-  shop?: string,
-  selectedConfig?: InstaWorldConfig,
+  config: InstaWorldConfig,
 ): Promise<InstaWorldShipment | null> {
-  const config = selectedConfig ?? requireInstaWorldConfig(shop);
   validateReference(refNo);
   const response = await request(`/shipments?ref_no=${encodeURIComponent(refNo)}`, config);
   const payload = await response.json().catch(() => ({}));
@@ -575,10 +515,8 @@ export async function findShipmentByReference(
 export async function createShipment(
   requestPayload: InstaWorldRequest,
   idempotencyKey: string,
-  shop?: string,
-  selectedConfig?: InstaWorldConfig,
+  config: InstaWorldConfig,
 ): Promise<InstaWorldShipment> {
-  const config = selectedConfig ?? requireInstaWorldConfig(shop);
   validateReference(requestPayload.refNo);
   const body: Record<string, unknown> = {
     location_id: requestPayload.locationId,

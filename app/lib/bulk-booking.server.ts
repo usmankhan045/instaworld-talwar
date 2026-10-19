@@ -202,7 +202,7 @@ async function bookOneBulkGroup(shop: string, group: BulkBookingGroup): Promise<
     const config = await resolveInstaWorldConfig(shop, group.accountId);
     // InstaWorld is the source of truth. A cancelled remote shipment may be
     // booked again; an active remote shipment is skipped as a duplicate.
-    const remote = await findShipmentByReference(group.reference, shop, config);
+    const remote = await findShipmentByReference(group.reference, config);
     if (remote && !isCancelledShipment(remote)) {
       return {reference: group.reference, status: "skipped", trackingNumber: remote.trackingNumber, message: "Already booked in InstaWorld."};
     }
@@ -251,7 +251,7 @@ async function bookOneBulkGroup(shop: string, group: BulkBookingGroup): Promise<
       : await prisma.bookingAttempt.create({data: {shop, shipmentId: shipment.id, idempotencyKey, status: "submitting", requestFingerprint: JSON.stringify({source: "whatsapp-csv", reference: group.reference}), requestPayload: JSON.stringify(requestPayload)}});
     try {
       stage = "booking the shipment with InstaWorld";
-      const result = await createShipment(requestPayload, idempotencyKey, shop, config);
+      const result = await createShipment(requestPayload, idempotencyKey, config);
       await prisma.$transaction([
         prisma.shipment.update({where: {id: shipment.id}, data: {status: "booked", trackingNumber: result.trackingNumber, bookedAt: new Date()}}),
         prisma.bookingAttempt.update({where: {id: attempt.id}, data: {status: "succeeded", completedAt: new Date()}}),

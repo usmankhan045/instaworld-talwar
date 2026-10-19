@@ -251,6 +251,11 @@ model InstaWorldAccount {
   apiKeyEncrypted String
   baseUrl    String   @default("https://api.instaworld.pk/v2")
   locationId Int
+  externalAccountId String?
+  accountDetailsJson String @default("{}")
+  locationsJson String @default("[]")
+  couriersJson String @default("[]")
+  lastSyncedAt DateTime @default(now())
   mode       String   @default("live")
   isDefault  Boolean  @default(false)
   createdAt  DateTime @default(now())
@@ -258,6 +263,7 @@ model InstaWorldAccount {
 
   @@unique([shop, name], name: "instaworldAccount_shop_name_key")
   @@index([shop, isDefault])
+  @@index([shop, externalAccountId])
 }
 
 model CallAttempt {

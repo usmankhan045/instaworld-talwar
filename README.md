@@ -247,12 +247,13 @@ Internationalization:
 # InstaWorld booking configuration
 
 The order action uses server-side Shopify authentication and keeps InstaWorld
-credentials out of the extension. Copy `.env.example` to the deployment
-environment and configure the Shopify credentials and database separately for
-development and production.
+credentials out of the extension. Each merchant connects its own InstaWorld API
+key from the app's Accounts page. The app reads the merchant identity, pickup
+locations, and available courier records from InstaWorld and displays that
+snapshot on the app home page. The key is encrypted in the database and every
+lookup, booking, retry, and synchronization request resolves credentials by the
+authenticated Shopify shop. There is no shared InstaWorld API key fallback.
 
-Live shipment creation is disabled unless `INSTAWORLD_ENABLE_LIVE=true`,
-`INSTAWORLD_CONTRACT_CONFIRMED=true`, and
-`INSTAWORLD_IDEMPOTENCY_CONFIRMED=true`. The ref_no limits and payment type
-values must be supplied from the authoritative InstaWorld Merchant API v2
-contract before those flags are enabled.
+Set `INSTAWORLD_CREDENTIALS_ENCRYPTION_KEY` to a stable, private 32-byte key in
+each deployment. Copy `.env.example` to the deployment environment and configure
+the Shopify credentials and database separately for development and production.
