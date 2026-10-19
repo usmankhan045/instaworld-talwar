@@ -463,20 +463,37 @@ function cityComparisonKey(value: string): string {
     .replace(/[^A-Z0-9]/g, "");
 }
 
-function editDistance(left: string, right: string): number {
-  const row = Array.from({length: right.length + 1}, (_, index) => index);
+/** Damerau-Levenshtein distance treats a common adjacent-letter swap as one typo. */
+function cityEditDistance(left: string, right: string): number {
+  const matrix = Array.from(
+    {length: left.length + 1},
+    (_, row) => Array.from({length: right.length + 1}, (_, column) => row === 0 ? column : column === 0 ? row : 0),
+  );
   for (let i = 1; i <= left.length; i += 1) {
-    let diagonal = row[0];
-    row[0] = i;
     for (let j = 1; j <= right.length; j += 1) {
-      const above = row[j];
-      row[j] = left[i - 1] === right[j - 1]
-        ? diagonal
-        : Math.min(diagonal + 1, row[j] + 1, row[j - 1] + 1);
-      diagonal = above;
+      const substitutionCost = left[i - 1] === right[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + substitutionCost,
+      );
+      if (
+        i > 1
+        && j > 1
+        && left[i - 1] === right[j - 2]
+        && left[i - 2] === right[j - 1]
+      ) {
+        matrix[i][j] = Math.min(matrix[i][j], matrix[i - 2][j - 2] + 1);
+      }
     }
   }
-  return row[right.length];
+  return matrix[left.length][right.length];
+}
+
+function allowedCityTypos(length: number): number {
+  if (length <= 7) return 1;
+  if (length <= 12) return 2;
+  return 3;
 }
 
 /** Match only against InstaWorld's catalog, tolerating spacing and small spelling differences. */
@@ -500,9 +517,9 @@ export function matchInstaWorldCity(raw: string | null | undefined, cities: stri
     const inputKey = cityComparisonKey(input);
     if (!inputKey) continue;
     const ranked = candidates
-      .map(({city, key}) => ({city, distance: editDistance(inputKey, key)}))
+      .map(({city, key}) => ({city, distance: cityEditDistance(inputKey, key)}))
       .sort((left, right) => left.distance - right.distance);
-    const threshold = inputKey.length <= 6 ? 1 : 2;
+    const threshold = allowedCityTypos(inputKey.length);
     if (ranked[0] && ranked[0].distance <= threshold && ranked[0].distance < (ranked[1]?.distance ?? Infinity)) {
       return ranked[0].city;
     }

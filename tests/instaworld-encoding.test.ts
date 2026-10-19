@@ -62,10 +62,29 @@ test("prefers the current Shopify spelling when InstaWorld lists it exactly", ()
 });
 
 test("matches InstaWorld city spellings despite spaces and small customer typos", () => {
-  assert.equal(matchInstaWorldCity("Tando Allahyar", ["TANDO ALLAH YAR"]), "TANDO ALLAH YAR");
-  assert.equal(matchInstaWorldCity("  Tando   Allahyar ", ["TANDO ALLAH YAR"]), "TANDO ALLAH YAR");
-  assert.equal(matchInstaWorldCity("Tando Allahya", ["TANDO ALLAH YAR"]), "TANDO ALLAH YAR");
-  assert.equal(matchInstaWorldCity("Tando Adam", ["TANDO ALLAH YAR"]), null);
+  const catalog = [
+    "TANDO ALLAH YAR",
+    "LAHORE",
+    "KARACHI",
+    "ISLAMABAD",
+    "FAISALABAD",
+    "BAHAWALPUR",
+    "MUZAFFARGARH",
+    "TANDO ADAM",
+  ];
+
+  assert.equal(matchInstaWorldCity("Tando Allahyar", catalog), "TANDO ALLAH YAR");
+  assert.equal(matchInstaWorldCity("  Tando   Allahyar ", catalog), "TANDO ALLAH YAR");
+  assert.equal(matchInstaWorldCity("Tando Allahya", catalog), "TANDO ALLAH YAR");
+  assert.equal(matchInstaWorldCity("Lahroe", catalog), "LAHORE");
+  assert.equal(matchInstaWorldCity("Karachii", catalog), "KARACHI");
+  assert.equal(matchInstaWorldCity("Islmabad", catalog), "ISLAMABAD");
+  assert.equal(matchInstaWorldCity("Faislabad", catalog), "FAISALABAD");
+  assert.equal(matchInstaWorldCity("Bahawlapur", catalog), "BAHAWALPUR");
+  assert.equal(matchInstaWorldCity("Muzafrgarh", catalog), "MUZAFFARGARH");
+  assert.equal(matchInstaWorldCity("Tando Adam", catalog), "TANDO ADAM");
+  assert.equal(matchInstaWorldCity("Completely Different", catalog), null);
+  assert.equal(matchInstaWorldCity("ABCDX", ["ABCDA", "ABCDB"]), null);
 });
 
 test("uses a fresh persisted InstaWorld city catalog without calling the API", async () => {
