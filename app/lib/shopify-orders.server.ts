@@ -15,6 +15,19 @@ export type Money = {
   currencyCode: string;
 };
 
+export type ShopifyOrderAddress = {
+  name: string | null;
+  phone: string | null;
+  address1: string | null;
+  address2: string | null;
+  city: string | null;
+  province: string | null;
+  provinceCode: string | null;
+  zip: string | null;
+  country: string | null;
+  countryCode: string | null;
+};
+
 export type ShopifyOrder = {
   id: string;
   orderNumber: string;
@@ -25,18 +38,8 @@ export type ShopifyOrder = {
   totalPrice: Money;
   totalOutstanding: Money | null;
   customer: null;
-  shippingAddress: {
-    name: string | null;
-    phone: string | null;
-    address1: string | null;
-    address2: string | null;
-    city: string | null;
-    province: string | null;
-    provinceCode: string | null;
-    zip: string | null;
-    country: string | null;
-    countryCode: string | null;
-  } | null;
+  shippingAddress: ShopifyOrderAddress | null;
+  billingAddress?: ShopifyOrderAddress | null;
   lineItems: Array<{
     id: string;
     title: string;
@@ -50,8 +53,35 @@ export type ShopifyOrder = {
 
 export type ShopifyOrderMatchCandidate = Pick<
   ShopifyOrder,
-  "id" | "orderNumber" | "email" | "createdAt" | "cancelledAt" | "shippingAddress"
+  "id" | "orderNumber" | "email" | "createdAt" | "cancelledAt" | "shippingAddress" | "billingAddress"
 >;
+
+function normalizedMatchValue(value: string | null | undefined): string {
+  return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function normalizedMatchPhone(value: string | null | undefined): string {
+  const digits = normalizedMatchValue(value).replace(/\D/g, "");
+  if (digits.startsWith("92") && digits.length === 12) return `0${digits.slice(2)}`;
+  return digits.startsWith("3") && digits.length === 10 ? `0${digits}` : digits;
+}
+
+export function hasReliableCustomerMatch(current: ShopifyOrder, candidate: ShopifyOrderMatchCandidate): boolean {
+  const currentAddresses = [current.shippingAddress, current.billingAddress].filter(Boolean);
+  const candidateAddresses = [candidate.shippingAddress, candidate.billingAddress].filter(Boolean);
+  const currentNames = new Set(currentAddresses
+    .map((address) => normalizedMatchValue(address?.name))
+    .filter(Boolean));
+  const sameName = candidateAddresses.some((address) => currentNames.has(normalizedMatchValue(address?.name)));
+  const currentPhones = new Set(currentAddresses
+    .map((address) => normalizedMatchPhone(address?.phone))
+    .filter((phone) => /^03\d{9}$/.test(phone)));
+  const samePhone = candidateAddresses.some((address) => currentPhones.has(normalizedMatchPhone(address?.phone)));
+
+  // Email and address may legitimately differ between two orders from the
+  // same person. Name + Pakistani mobile number is the matching authority.
+  return sameName && samePhone;
+}
 
 type GraphqlResponse<T> = {
   data?: T;
@@ -92,6 +122,18 @@ const ORDER_FIELDS = `
     }
   }
   shippingAddress {
+    name
+    phone
+    address1
+    address2
+    city
+    province
+    provinceCode
+    zip
+    country
+    countryCodeV2
+  }
+  billingAddress {
     name
     phone
     address1
@@ -166,6 +208,21 @@ function parseOrder(node: any): ShopifyOrder {
     currencyCode: String(value?.shopMoney?.currencyCode ?? ""),
   });
 
+  const address = (value: any): ShopifyOrderAddress | null => value
+    ? {
+        name: value.name ?? null,
+        phone: value.phone ?? null,
+        address1: value.address1 ?? null,
+        address2: value.address2 ?? null,
+        city: value.city ?? null,
+        province: value.province ?? null,
+        provinceCode: value.provinceCode ?? null,
+        zip: value.zip ?? null,
+        country: value.country ?? null,
+        countryCode: value.countryCodeV2 ?? null,
+      }
+    : null;
+
   return {
     id: String(node.id),
     orderNumber: String(node.name).replace(/^#/, ""),
@@ -178,20 +235,8 @@ function parseOrder(node: any): ShopifyOrder {
       ? shopMoney(node.totalOutstandingSet)
       : null,
     customer: null,
-    shippingAddress: node.shippingAddress
-      ? {
-          name: node.shippingAddress.name ?? null,
-          phone: node.shippingAddress.phone ?? null,
-          address1: node.shippingAddress.address1 ?? null,
-          address2: node.shippingAddress.address2 ?? null,
-          city: node.shippingAddress.city ?? null,
-          province: node.shippingAddress.province ?? null,
-          provinceCode: node.shippingAddress.provinceCode ?? null,
-          zip: node.shippingAddress.zip ?? null,
-          country: node.shippingAddress.country ?? null,
-          countryCode: node.shippingAddress.countryCodeV2 ?? null,
-        }
-      : null,
+    shippingAddress: address(node.shippingAddress),
+    billingAddress: address(node.billingAddress),
     lineItems: (node.lineItems?.edges ?? []).map(({ node: item }: any) => {
       return {
         id: String(item.id),
@@ -300,6 +345,18 @@ export async function searchShopifyOrders(
               country
               countryCodeV2
             }
+            billingAddress {
+              name
+              phone
+              address1
+              address2
+              city
+              province
+              provinceCode
+              zip
+              country
+              countryCodeV2
+            }
           }
         }
       }
@@ -313,25 +370,62 @@ export async function searchShopifyOrders(
     }>,
   );
 
-  return data.orders.nodes.map((order) => ({
+  return data.orders.nodes.map((order) => parseMatchCandidate(order));
+}
+
+function parseMatchCandidate(order: any): ShopifyOrderMatchCandidate {
+  const address = (value: any): ShopifyOrderAddress | null => value
+    ? {
+        name: value.name ?? null,
+        phone: value.phone ?? null,
+        address1: value.address1 ?? null,
+        address2: value.address2 ?? null,
+        city: value.city ?? null,
+        province: value.province ?? null,
+        provinceCode: value.provinceCode ?? null,
+        zip: value.zip ?? null,
+        country: value.country ?? null,
+        countryCode: value.countryCodeV2 ?? null,
+      }
+    : null;
+  return {
     id: String(order.id),
     orderNumber: String(order.name).replace(/^#/, ""),
     email: order.email ? String(order.email) : null,
     createdAt: String(order.createdAt),
     cancelledAt: order.cancelledAt ?? null,
-    shippingAddress: order.shippingAddress
-      ? {
-          name: order.shippingAddress.name ?? null,
-          phone: order.shippingAddress.phone ?? null,
-          address1: order.shippingAddress.address1 ?? null,
-          address2: order.shippingAddress.address2 ?? null,
-          city: order.shippingAddress.city ?? null,
-          province: order.shippingAddress.province ?? null,
-          provinceCode: order.shippingAddress.provinceCode ?? null,
-          zip: order.shippingAddress.zip ?? null,
-          country: order.shippingAddress.country ?? null,
-          countryCode: order.shippingAddress.countryCodeV2 ?? null,
+    shippingAddress: address(order.shippingAddress),
+    billingAddress: address(order.billingAddress),
+  };
+}
+
+/** Fetch a bounded recent candidate set once, then match customer identity locally. */
+export async function getRecentShopifyOrderCandidates(
+  admin: ShopifyAdminGraphql,
+): Promise<ShopifyOrderMatchCandidate[]> {
+  const result = await admin.graphql(
+    `#graphql
+      query RecentOpenOrders {
+        orders(first: 100, query: "status:open", sortKey: CREATED_AT, reverse: true) {
+          nodes {
+            id
+            name
+            email
+            createdAt
+            cancelledAt
+            shippingAddress {
+              name phone address1 address2 city province provinceCode zip country countryCodeV2
+            }
+            billingAddress {
+              name phone address1 address2 city province provinceCode zip country countryCodeV2
+            }
+          }
         }
-      : null,
-  }));
+      }
+    `,
+  );
+  const data = assertGraphqlSuccess(
+    (await result.json()) as GraphqlResponse<{orders: {nodes: any[]}}>,
+  );
+  return data.orders.nodes.map((order) => parseMatchCandidate(order));
 }
