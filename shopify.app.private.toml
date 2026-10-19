@@ -1,0 +1,27 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "f5529db1addcdd7a0713e2febfb30cdc"
+application_url = "https://instaworld.barriovibe.com"
+embedded = true
+name = "BarrioVibe InstaWorld"
+
+[webhooks]
+api_version = "2026-10"
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = [ "app/uninstalled" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/scopes_update"
+  topics = [ "app/scopes_update" ]
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_merchant_managed_fulfillment_orders,read_orders,read_products,write_merchant_managed_fulfillment_orders"
+
+[auth]
+redirect_urls = [ "https://instaworld.barriovibe.com/auth/callback" ]
+
+[build]
+automatically_update_urls_on_dev = true
