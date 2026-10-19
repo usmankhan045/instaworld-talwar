@@ -13,6 +13,10 @@ export type InstaWorldConfig = {
   baseUrl: string;
   locationId: number;
   refPrefix: string;
+  cityCatalogKey?: string;
+  cityCatalog?: string[];
+  cityCatalogSyncedAt?: number;
+  saveCityCatalog?: (cities: string[], syncedAt: Date) => Promise<void>;
 };
 
 export const INSTAWORLD_API_BASE_URL = "https://one-be.instaworld.pk/merchant-api/v2";
@@ -445,38 +449,111 @@ async function request(path: string, config: InstaWorldConfig, init?: RequestIni
 
 const instaworldCitiesCache = new Map<string, {cities: string[]; expiresAt: number}>();
 const instaworldCitiesInFlight = new Map<string, Promise<string[]>>();
+const CITY_CATALOG_TTL_MS = 24 * 60 * 60 * 1000;
+const STALE_CITY_CATALOG_RETRY_MS = 5 * 60 * 1000;
 
-/** Prefer the merchant's current spelling when it exactly exists in InstaWorld. */
+function cityDisplayName(value: string): string {
+  return value.trim().toUpperCase().replace(/\s+/g, " ");
+}
+
+function cityComparisonKey(value: string): string {
+  return cityDisplayName(value)
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Z0-9]/g, "");
+}
+
+function editDistance(left: string, right: string): number {
+  const row = Array.from({length: right.length + 1}, (_, index) => index);
+  for (let i = 1; i <= left.length; i += 1) {
+    let diagonal = row[0];
+    row[0] = i;
+    for (let j = 1; j <= right.length; j += 1) {
+      const above = row[j];
+      row[j] = left[i - 1] === right[j - 1]
+        ? diagonal
+        : Math.min(diagonal + 1, row[j] + 1, row[j - 1] + 1);
+      diagonal = above;
+    }
+  }
+  return row[right.length];
+}
+
+/** Match only against InstaWorld's catalog, tolerating spacing and small spelling differences. */
 export function matchInstaWorldCity(raw: string | null | undefined, cities: string[]): string | null {
   if (!raw) return null;
-  const comparable = (value: string) => value.trim().toUpperCase().replace(/\s+/g, " ");
-  const current = comparable(stripCityQualifier(stripProvinceQualifier(raw)));
-  const exact = cities.find((city) => comparable(city) === current);
-  if (exact) return comparable(exact);
-
+  const catalog = [...new Set(cities.map(cityDisplayName).filter(Boolean))];
+  const current = cityDisplayName(stripCityQualifier(stripProvinceQualifier(raw)));
   const corrected = normaliseCity(raw);
-  const correctedMatch = cities.find((city) => comparable(city) === comparable(corrected));
-  return correctedMatch ? comparable(correctedMatch) : null;
+  const inputVariants = [...new Set([current, corrected].filter(Boolean))];
+
+  for (const input of inputVariants) {
+    const exact = catalog.find((city) => city === input);
+    if (exact) return exact;
+    const compactKey = cityComparisonKey(input);
+    const compact = catalog.find((city) => cityComparisonKey(city) === compactKey);
+    if (compact) return compact;
+  }
+
+  const candidates = catalog.map((city) => ({city, key: cityComparisonKey(city)}));
+  for (const input of inputVariants) {
+    const inputKey = cityComparisonKey(input);
+    if (!inputKey) continue;
+    const ranked = candidates
+      .map(({city, key}) => ({city, distance: editDistance(inputKey, key)}))
+      .sort((left, right) => left.distance - right.distance);
+    const threshold = inputKey.length <= 6 ? 1 : 2;
+    if (ranked[0] && ranked[0].distance <= threshold && ranked[0].distance < (ranked[1]?.distance ?? Infinity)) {
+      return ranked[0].city;
+    }
+  }
+  return null;
 }
 
 export async function getInstaWorldCities(config: InstaWorldConfig): Promise<string[]> {
-  const cached = instaworldCitiesCache.get(config.baseUrl);
+  const cacheKey = config.cityCatalogKey ?? config.baseUrl;
+  const cached = instaworldCitiesCache.get(cacheKey);
   if (cached && Date.now() < cached.expiresAt) return cached.cities;
-  const pending = instaworldCitiesInFlight.get(config.baseUrl);
+  const storedCities = [...new Set((config.cityCatalog ?? []).map(cityDisplayName).filter(Boolean))];
+  if (
+    storedCities.length > 0
+    && config.cityCatalogSyncedAt
+    && Date.now() - config.cityCatalogSyncedAt < CITY_CATALOG_TTL_MS
+  ) {
+    instaworldCitiesCache.set(cacheKey, {
+      cities: storedCities,
+      expiresAt: config.cityCatalogSyncedAt + CITY_CATALOG_TTL_MS,
+    });
+    return storedCities;
+  }
+  const pending = instaworldCitiesInFlight.get(cacheKey);
   if (pending) return pending;
 
   const lookup = (async () => {
-    const response = await request("/cities", config);
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(extractErrorMessage(payload, response.status));
-    const cities = Array.isArray(payload?.data)
-      ? payload.data.map((city: {name?: unknown}) => String(city?.name ?? "").trim().toUpperCase()).filter(Boolean)
-      : [];
-    if (cities.length === 0) throw new Error("InstaWorld returned no serviceable cities.");
-    instaworldCitiesCache.set(config.baseUrl, {cities, expiresAt: Date.now() + 60 * 60 * 1000});
-    return cities;
-  })().finally(() => instaworldCitiesInFlight.delete(config.baseUrl));
-  instaworldCitiesInFlight.set(config.baseUrl, lookup);
+    try {
+      const response = await request("/cities", config);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(extractErrorMessage(payload, response.status));
+      const cities = Array.isArray(payload?.data)
+        ? [...new Set((payload.data as Array<{name?: unknown}>)
+          .map((city: {name?: unknown}) => cityDisplayName(String(city?.name ?? "")))
+          .filter(Boolean))]
+        : [];
+      if (cities.length === 0) throw new Error("InstaWorld returned no serviceable cities.");
+      const syncedAt = new Date();
+      instaworldCitiesCache.set(cacheKey, {cities, expiresAt: syncedAt.getTime() + CITY_CATALOG_TTL_MS});
+      await config.saveCityCatalog?.(cities, syncedAt).catch(() => undefined);
+      return cities;
+    } catch (error) {
+      if (storedCities.length === 0) throw error;
+      instaworldCitiesCache.set(cacheKey, {
+        cities: storedCities,
+        expiresAt: Date.now() + STALE_CITY_CATALOG_RETRY_MS,
+      });
+      return storedCities;
+    }
+  })().finally(() => instaworldCitiesInFlight.delete(cacheKey));
+  instaworldCitiesInFlight.set(cacheKey, lookup);
   return lookup;
 }
 

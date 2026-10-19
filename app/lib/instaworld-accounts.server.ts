@@ -189,6 +189,13 @@ export async function resolveInstaWorldConfig(shop: string, accountId?: string):
   if (!apiKey || !Number.isInteger(account.locationId) || account.locationId <= 0) {
     throw new Error("This store's InstaWorld account is incomplete. Reconnect it from the Accounts page.");
   }
+  let cityCatalog: string[] = [];
+  try {
+    const parsed = JSON.parse(account.cityCatalogJson) as unknown;
+    if (Array.isArray(parsed)) cityCatalog = parsed.filter((city): city is string => typeof city === "string");
+  } catch {
+    cityCatalog = [];
+  }
   return {
     id: account.id,
     name: account.name,
@@ -197,6 +204,15 @@ export async function resolveInstaWorldConfig(shop: string, accountId?: string):
     baseUrl: INSTAWORLD_API_BASE_URL,
     locationId: account.locationId,
     refPrefix: "",
+    cityCatalogKey: account.id,
+    cityCatalog,
+    cityCatalogSyncedAt: account.cityCatalogSyncedAt?.getTime(),
+    saveCityCatalog: async (cities, syncedAt) => {
+      await prisma.instaWorldAccount.update({
+        where: {id: account.id},
+        data: {cityCatalogJson: JSON.stringify(cities), cityCatalogSyncedAt: syncedAt},
+      });
+    },
   };
 }
 

@@ -256,6 +256,8 @@ model InstaWorldAccount {
   locationsJson String @default("[]")
   couriersJson String @default("[]")
   lastSyncedAt DateTime @default(now())
+  cityCatalogJson String @default("[]")
+  cityCatalogSyncedAt DateTime?
   mode       String   @default("live")
   isDefault  Boolean  @default(false)
   createdAt  DateTime @default(now())

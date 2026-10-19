@@ -4,6 +4,7 @@ import {
   allocateShipmentWeight,
   buildInstaWorldAddress,
   FIXED_SHIPMENT_WEIGHT_KG,
+  getInstaWorldCities,
   isCancelledShipment,
   isDeliveredShipment,
   matchInstaWorldCity,
@@ -58,6 +59,84 @@ test("prefers the current Shopify spelling when InstaWorld lists it exactly", ()
     "LIAQATPUR",
   );
   assert.equal(matchInstaWorldCity("Islamabd", ["ISLAMABAD"]), "ISLAMABAD");
+});
+
+test("matches InstaWorld city spellings despite spaces and small customer typos", () => {
+  assert.equal(matchInstaWorldCity("Tando Allahyar", ["TANDO ALLAH YAR"]), "TANDO ALLAH YAR");
+  assert.equal(matchInstaWorldCity("  Tando   Allahyar ", ["TANDO ALLAH YAR"]), "TANDO ALLAH YAR");
+  assert.equal(matchInstaWorldCity("Tando Allahya", ["TANDO ALLAH YAR"]), "TANDO ALLAH YAR");
+  assert.equal(matchInstaWorldCity("Tando Adam", ["TANDO ALLAH YAR"]), null);
+});
+
+test("uses a fresh persisted InstaWorld city catalog without calling the API", async () => {
+  const originalFetch = globalThis.fetch;
+  let fetches = 0;
+  globalThis.fetch = async () => {
+    fetches += 1;
+    throw new Error("the API should not be called");
+  };
+  try {
+    const cities = await getInstaWorldCities({
+      account: "live",
+      apiKey: "test",
+      baseUrl: "https://example.invalid",
+      locationId: 1,
+      refPrefix: "",
+      cityCatalogKey: "fresh-persisted-catalog-test",
+      cityCatalog: [" Tando  Allah Yar "],
+      cityCatalogSyncedAt: Date.now(),
+    });
+    assert.deepEqual(cities, ["TANDO ALLAH YAR"]);
+    assert.equal(fetches, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("refreshes and saves a stale InstaWorld city catalog", async () => {
+  const originalFetch = globalThis.fetch;
+  let saved: string[] = [];
+  globalThis.fetch = async () => new Response(JSON.stringify({data: [{name: "Tando Allah Yar"}, {name: "Lahore"}]}), {
+    status: 200,
+    headers: {"Content-Type": "application/json"},
+  });
+  try {
+    const cities = await getInstaWorldCities({
+      account: "live",
+      apiKey: "test",
+      baseUrl: "https://example.invalid",
+      locationId: 1,
+      refPrefix: "",
+      cityCatalogKey: "stale-persisted-catalog-test",
+      cityCatalog: ["OLD CITY"],
+      cityCatalogSyncedAt: 1,
+      saveCityCatalog: async (catalog) => { saved = catalog; },
+    });
+    assert.deepEqual(cities, ["TANDO ALLAH YAR", "LAHORE"]);
+    assert.deepEqual(saved, cities);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("falls back to a stale saved city catalog when InstaWorld is unavailable", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error("temporary outage"); };
+  try {
+    const cities = await getInstaWorldCities({
+      account: "live",
+      apiKey: "test",
+      baseUrl: "https://example.invalid",
+      locationId: 1,
+      refPrefix: "",
+      cityCatalogKey: "stale-fallback-catalog-test",
+      cityCatalog: ["TANDO ALLAH YAR"],
+      cityCatalogSyncedAt: 1,
+    });
+    assert.deepEqual(cities, ["TANDO ALLAH YAR"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("converts Urdu city names to InstaWorld's canonical English names", () => {
