@@ -20,6 +20,7 @@ export default function App() {
       <s-app-nav>
         <s-link href="/app">Home</s-link>
         <s-link href="/app/bulk-booking">WhatsApp bulk booking</s-link>
+        <s-link href="/app/overdue-orders">Overdue orders</s-link>
         <s-link href="/app/accounts">InstaWorld accounts</s-link>
       </s-app-nav>
       <Outlet />

@@ -8,24 +8,22 @@
  *
  * Flow:
  *  1. For each shop with a stored session:
- *  2. Load SyncState.lastSyncedAt (default: 24 hours ago)
- *  3. Call InstaWorld GET /shipments?updated_since=<lastSyncedAt>
- *  4. For each updated shipment: find our DB Shipment by tracking_number
- *  5. Update Shopify fulfillment via GraphQL
- *  6. Update Shipment.instaworldStatus in DB
- *  7. Update SyncState.lastSyncedAt
+ *  2. Fetch every paginated shipment from every connected InstaWorld account
+ *  3. Find the matching app Shipment by tracking_number
+ *  4. Save the authoritative InstaWorld status in the app database
+ *  5. Update SyncState.lastSyncedAt
+ *
+ * This worker deliberately never changes Shopify fulfillment state. Shopify is
+ * marked fulfilled once, during the merchant-confirmed booking flow.
  */
 
 import type {LoaderFunctionArgs} from "react-router";
 import prisma from "../db.server";
-import {unauthenticated} from "../shopify.server";
 import {
-  createShopifyFulfillment,
-  createShopifyFulfillmentEvent,
-  cancelShopifyFulfillment,
-  instaworldStatusToShopify,
-} from "../lib/shopify-fulfillment.server";
-import {listInstaWorldAccounts, resolveInstaWorldConfig} from "../lib/instaworld-accounts.server";
+  instaWorldStatusCode,
+  instaWorldTrackingNumber,
+  listAllInstaWorldShipments,
+} from "../lib/instaworld-shipments.server";
 
 function jsonResp(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -39,52 +37,6 @@ function isAuthorized(request: Request): boolean {
   return Boolean(secret && request.headers.get("Authorization") === `Bearer ${secret}`);
 }
 
-type InstaWorldShipment = {
-  tracking_number?: string;
-  status?: {code?: string};
-};
-
-type InstaWorldShipmentsResponse = {
-  data?: InstaWorldShipment[];
-  meta?: {next_cursor?: string | null};
-};
-
-async function fetchInstaWorldShipments(shop: string, updatedSince: Date): Promise<Array<InstaWorldShipment & {accountId?: string}>> {
-  const storedAccounts = await listInstaWorldAccounts(shop);
-  const configs: Array<Awaited<ReturnType<typeof resolveInstaWorldConfig>>> = await Promise.all(
-    storedAccounts.map((account) => resolveInstaWorldConfig(shop, account.id)),
-  );
-  const allShipments: Array<InstaWorldShipment & {accountId?: string}> = [];
-  for (const config of configs) {
-  let cursor: string | null = null;
-
-  do {
-    const params = new URLSearchParams({
-      updated_since: updatedSince.toISOString(),
-      limit: "200",
-    });
-    if (cursor) params.set("cursor", cursor);
-
-    const res = await fetch(`${config.baseUrl}/shipments?${params}`, {
-      headers: {Authorization: `Bearer ${config.apiKey}`, Accept: "application/json"},
-      signal: AbortSignal.timeout(15000),
-    });
-
-    if (!res.ok) {
-      console.error("[sync] InstaWorld /shipments error:", res.status);
-      break;
-    }
-
-    const payload = (await res.json()) as InstaWorldShipmentsResponse;
-    const data = Array.isArray(payload.data) ? payload.data : [];
-    allShipments.push(...data.map((shipment) => ({...shipment, accountId: config.id})));
-    cursor = payload?.meta?.next_cursor ?? null;
-  } while (cursor);
-  }
-
-  return allShipments;
-}
-
 export async function loader({request}: LoaderFunctionArgs) {
   if (!isAuthorized(request)) {
     return jsonResp({error: "Unauthorized"}, 401);
@@ -93,7 +45,9 @@ export async function loader({request}: LoaderFunctionArgs) {
   const startTime = Date.now();
   let totalProcessed = 0;
   let totalUpdated = 0;
-  const errors: string[] = [];
+  let totalSkipped = 0;
+  const warnings: string[] = [];
+  const criticalErrors: string[] = [];
 
   try {
     // Get all distinct shops with active sessions
@@ -107,114 +61,76 @@ export async function loader({request}: LoaderFunctionArgs) {
       const {shop} = session;
 
       try {
-        const shopErrorCountBefore = errors.length;
-        // Load or create SyncState for this shop
-        const syncState = await prisma.syncState.upsert({
+        await prisma.syncState.upsert({
           where: {shop},
-          create: {shop, lastSyncedAt: new Date(Date.now() - 24 * 60 * 60 * 1000)},
+          create: {shop},
           update: {},
         });
-
-        const updatedSince = syncState.lastSyncedAt;
         const syncStart = new Date();
 
-        // Fetch updated shipments from InstaWorld
-        const iwShipments = await fetchInstaWorldShipments(shop, updatedSince);
+        // A full read makes the worker self-healing even when a previous cursor,
+        // deployment, or webhook window was missed.
+        const result = await listAllInstaWorldShipments(shop);
+        const iwShipments = result.shipments;
+        warnings.push(...result.warnings.map((warning) => `Shop ${shop}: ${warning}`));
         if (iwShipments.length === 0) {
           await prisma.syncState.update({where: {shop}, data: {lastSyncedAt: syncStart}});
           continue;
         }
 
-        // Get Shopify admin client for this shop
-        const {admin} = await unauthenticated.admin(shop);
-
         for (const iwShipment of iwShipments) {
-          const trackingNumber = iwShipment?.tracking_number;
-          if (!trackingNumber) continue;
+          const trackingNumber = instaWorldTrackingNumber(iwShipment);
+          if (!trackingNumber) {
+            totalSkipped++;
+            continue;
+          }
 
-          const newStatus: string = iwShipment?.status?.code ?? "";
-          if (!newStatus) continue;
+          const newStatus = instaWorldStatusCode(iwShipment);
+          if (!newStatus) {
+            totalSkipped++;
+            continue;
+          }
 
           totalProcessed++;
 
           // Find our shipment record by tracking number
           const dbShipment = await prisma.shipment.findFirst({
-            where: {shop, trackingNumber, ...(iwShipment.accountId ? {instaworldAccountId: iwShipment.accountId} : {})},
-            include: {orders: true},
+            where: {shop, trackingNumber, instaworldAccountId: iwShipment.accountId},
+            select: {id: true, instaworldStatus: true},
           });
 
-          if (!dbShipment) continue; // Not our shipment
+          if (!dbShipment) {
+            totalSkipped++;
+            continue; // A valid InstaWorld shipment that was not booked by this app.
+          }
 
           // Skip if status hasn't changed
-          if (dbShipment.instaworldStatus === newStatus) continue;
-
-          const {fulfillmentEventStatus, shouldMarkDelivered, shouldCancel} =
-            instaworldStatusToShopify(newStatus);
+          if (dbShipment.instaworldStatus === newStatus) {
+            totalSkipped++;
+            continue;
+          }
 
           try {
-            const shopifyOrderIds = dbShipment.orders.map((o) => o.shopifyOrderId);
-
-            let fulfillmentId = dbShipment.shopifyFulfillmentId;
-
-            if (!fulfillmentId) {
-              // No fulfillment yet — create one now (booking may have happened before this feature)
-              if (shopifyOrderIds.length > 0 && dbShipment.trackingNumber) {
-                fulfillmentId = await createShopifyFulfillment(
-                  admin,
-                  shopifyOrderIds,
-                  dbShipment.trackingNumber,
-                );
-                if (fulfillmentId) {
-                  await prisma.shipment.update({
-                    where: {id: dbShipment.id},
-                    data: {shopifyFulfillmentId: fulfillmentId},
-                  });
-                }
-              }
-            }
-
-            if (!fulfillmentId) {
-              throw new Error("Could not create or find a Shopify fulfillment");
-            }
-
-            if (shouldCancel) {
-              const cancelled = await cancelShopifyFulfillment(admin, fulfillmentId);
-              if (!cancelled) throw new Error("Shopify rejected fulfillment cancellation");
-            } else if (fulfillmentEventStatus) {
-              const eventCreated = await createShopifyFulfillmentEvent(
-                admin,
-                fulfillmentId,
-                fulfillmentEventStatus,
-              );
-              if (!eventCreated) throw new Error(`Shopify rejected ${fulfillmentEventStatus} fulfillment event`);
-            }
-
             await prisma.shipment.update({
               where: {id: dbShipment.id},
               data: {
                 instaworldStatus: newStatus,
                 lastSyncedAt: new Date(),
-                ...(shouldMarkDelivered ? {status: "delivered"} : {}),
-                ...(shouldCancel ? {status: "cancelled"} : {}),
               },
             });
 
             totalUpdated++;
           } catch (shipmentError) {
             const msg = `Shipment ${trackingNumber}: ${shipmentError instanceof Error ? shipmentError.message : String(shipmentError)}`;
-            errors.push(msg);
+            criticalErrors.push(msg);
             console.error("[sync]", msg);
           }
         }
 
-        // Only advance the cursor after every shipment in this window has
-        // synced. Failed shipments must remain eligible for the next cron run.
-        if (errors.length === shopErrorCountBefore) {
-          await prisma.syncState.update({where: {shop}, data: {lastSyncedAt: syncStart}});
-        }
+        await prisma.syncState.update({where: {shop}, data: {lastSyncedAt: syncStart}});
       } catch (shopError) {
         const msg = `Shop ${shop}: ${shopError instanceof Error ? shopError.message : String(shopError)}`;
-        errors.push(msg);
+        criticalErrors.push(msg);
         console.error("[sync]", msg);
       }
     }
@@ -224,10 +140,12 @@ export async function loader({request}: LoaderFunctionArgs) {
   }
 
   return jsonResp({
-    ok: errors.length === 0,
+    ok: criticalErrors.length === 0,
     durationMs: Date.now() - startTime,
     processed: totalProcessed,
     updated: totalUpdated,
-    errors,
-  }, errors.length === 0 ? 200 : 500);
+    skipped: totalSkipped,
+    warnings,
+    errors: criticalErrors,
+  }, criticalErrors.length === 0 ? 200 : 500);
 }
