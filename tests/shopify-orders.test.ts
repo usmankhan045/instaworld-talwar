@@ -10,9 +10,10 @@ import {
   type ShopifyOrderMatchCandidate,
 } from "../app/lib/shopify-orders.server.ts";
 
-test("shipment items use store product details without handle-specific mappings", async () => {
+test("shipment items prefer title colors and safely fall back to stored product details", async () => {
   const products = [
-    {title: "Classic Shirt", product: {color: null}, variant: {title: "Half white / Medium"}},
+    {title: "Classic Shirt - Off White", product: {color: {value: "Warm White"}}, variant: {title: "Half white / Medium"}},
+    {title: "Leather - Travel Sandal — Pure Black", product: {color: {value: "Black"}}, variant: {title: "Default Title"}},
     {title: "Leather Sandal", product: {color: {value: "Pebble Grey"}}, variant: {title: "Default Title"}},
     {title: "Organic Jaggery", product: {color: null}, variant: {title: "Default Title"}},
   ];
@@ -33,7 +34,8 @@ test("shipment items use store product details without handle-specific mappings"
 
   const [order] = await getShopifyOrders(admin, ["gid://shopify/Order/1"]);
   assert.deepEqual(order.lineItems.map(({title, color}) => ({title, color})), [
-    {title: "Classic Shirt", color: "Half white / Medium"},
+    {title: "Classic Shirt - Off White", color: "Off White"},
+    {title: "Leather - Travel Sandal — Pure Black", color: "Pure Black"},
     {title: "Leather Sandal", color: "Pebble Grey"},
     {title: "Organic Jaggery", color: null},
   ]);
@@ -49,7 +51,8 @@ test("shipment items use store product details without handle-specific mappings"
     },
   }]);
   assert.deepEqual(combined.items.map(({title, color}) => ({title, color})), [
-    {title: "Classic Shirt", color: "Half white / Medium"},
+    {title: "Classic Shirt - Off White", color: "Off White"},
+    {title: "Leather - Travel Sandal — Pure Black", color: "Pure Black"},
     {title: "Leather Sandal", color: "Pebble Grey"},
     {title: "Organic Jaggery", color: null},
   ]);

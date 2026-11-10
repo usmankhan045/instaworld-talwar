@@ -192,6 +192,13 @@ function assertGraphqlSuccess<T>(result: GraphqlResponse<T>): T {
 }
 
 function productDetail(item: any): string | null {
+  // Product titles in this store follow "Product name - Color". Prefer the
+  // title so merchants can update a product's color in one obvious place and
+  // stale metafields cannot leak an old color into the booking invoice.
+  const title = String(item.title ?? "").trim();
+  const titleColor = title.match(/^.+\s[-–—]\s(.+)$/)?.[1]?.trim();
+  if (titleColor) return titleColor;
+
   const metafield = String(item.product?.color?.value ?? "").trim();
   if (metafield) return metafield;
   const variantTitle = String(item.variant?.title ?? "").trim();
