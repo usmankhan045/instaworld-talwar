@@ -419,11 +419,8 @@ function Extension() {
             <s-text>Standard weight: 0.8 kg (fixed)</s-text>
             {verifiedAddress && (
               <s-text>
-                Verified address ({verifiedAddress.source}): {verifiedAddress.formattedAddress}
+                Shopify address (verify manually): {verifiedAddress.formattedAddress}
               </s-text>
-            )}
-            {verifiedAddress?.warning && (
-              <s-banner tone="warning">Address note: {verifiedAddress.warning}</s-banner>
             )}
           </>
         )}

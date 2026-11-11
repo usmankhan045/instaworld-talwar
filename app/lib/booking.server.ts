@@ -192,9 +192,6 @@ export async function bookCombinedOrders(
     existingLinksPromise,
   ]);
   const {combined, verification: addressVerification} = addressSelection;
-  if (!addressVerification.ok) {
-    throw new Error(addressVerification.message);
-  }
   const lookupShipment = memoizedShipmentLookup(config);
   const [secondaryAvailability, resolvedServiceCity] = await Promise.all([
     checkInstaWorldOrderAvailability(shop, orders.slice(1), config, {

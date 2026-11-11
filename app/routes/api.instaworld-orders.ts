@@ -190,8 +190,8 @@ export async function action({ request }: ActionFunctionArgs) {
       combined,
       relatedOrders: [],
       cityWarning,
-      verifiedAddress: addressVerification.ok ? addressVerification.verifiedAddress : null,
-      addressError: addressVerification.ok ? null : addressVerification.message,
+      verifiedAddress: addressVerification.verifiedAddress,
+      addressError: null,
     });
   } catch (error) {
     // Preserve Shopify authentication redirects and thrown responses.

@@ -113,23 +113,17 @@ test("rejects an address choice outside the selected orders", () => {
     /must come from one of the selected orders/);
 });
 
-test("automatic selection tries another order when the first address fails validation", async () => {
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () => new Response("[]", {status: 200});
-  try {
-    const orders = [
-      order({id: "1", shippingAddress: {...order().shippingAddress, address1: "St"}}),
-      order({id: "2"}),
-    ];
-    const automatic = await selectDeliveryAddress(orders);
-    assert.equal(automatic.verification.ok, true);
-    assert.equal(automatic.combined.addressOrderId, "2");
-    const manual = await selectDeliveryAddress(orders, undefined, "1");
-    assert.equal(manual.verification.ok, false);
-    assert.equal(manual.combined.addressOrderId, "1");
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
+test("manual verification preserves the selected Shopify address", async () => {
+  const orders = [
+    order({id: "1", shippingAddress: {...order().shippingAddress, address1: "St"}}),
+    order({id: "2"}),
+  ];
+  const automatic = await selectDeliveryAddress(orders);
+  assert.equal(automatic.verification.ok, true);
+  assert.equal(automatic.combined.addressOrderId, "1");
+  const manual = await selectDeliveryAddress(orders, undefined, "2");
+  assert.equal(manual.verification.ok, true);
+  assert.equal(manual.combined.addressOrderId, "2");
 });
 
 test("rejects mixed COD and prepaid treatment", () => {
