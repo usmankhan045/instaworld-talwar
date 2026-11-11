@@ -1,13 +1,7 @@
 import "@shopify/ui-extensions/preact";
 import {render} from "preact";
-import {useEffect, useState} from "preact/hooks";
-
-/**
- * Production Vercel app URL.  All extension→app fetch calls must target this
- * origin — `window.location.origin` inside the Admin extension sandbox resolves
- * to the extension CDN origin, not the app server.
- */
-const APP_URL = "https://instaworld.barriovibe.com";
+import {useEffect, useRef, useState} from "preact/hooks";
+import {getApiClient} from "./api-client";
 
 class ApiError extends Error {
   /** @type {string[]} */
@@ -29,14 +23,6 @@ function formatMoney(amount, currency) {
  * Throws if the platform cannot issue a token so that callers surface the error
  * rather than making an unauthenticated request.
  */
-async function getAuthHeaders() {
-  const token = await shopify.auth.idToken();
-  if (!token) {
-    throw new Error("Unable to obtain an authentication token. Please reload the page.");
-  }
-  return {Authorization: `Bearer ${token}`};
-}
-
 /**
  * @param {Response} response
  * @param {string} fallbackMessage
@@ -109,6 +95,8 @@ function Extension() {
   const [accounts, setAccounts] = useState([]);
   const [accountId, setAccountId] = useState("");
   const [accountsLoading, setAccountsLoading] = useState(true);
+  const [matchingOrdersLoading, setMatchingOrdersLoading] = useState(false);
+  const relatedRequestId = useRef(0);
 
   useEffect(() => {
     if (!currentOrderId) {
@@ -125,8 +113,8 @@ function Extension() {
 
   async function loadAccounts() {
     try {
-      const authHeaders = await getAuthHeaders();
-      const response = await fetch(`${APP_URL}/api/instaworld-accounts`, {
+      const {appUrl, authHeaders} = await getApiClient();
+      const response = await fetch(`${appUrl}/api/instaworld-accounts`, {
         headers: {...authHeaders},
         cache: "no-store",
       });
@@ -149,11 +137,14 @@ function Extension() {
     chosenAddressOrderId = addressOrderId,
     chosenAccountId = accountId,
   ) {
+    relatedRequestId.current += 1;
+    setMatchingOrdersLoading(false);
+    setRelatedOrders([]);
     setLoading(true);
     setError("");
     try {
-      const authHeaders = await getAuthHeaders();
-      const response = await fetch(`${APP_URL}/api/instaworld-orders`, {
+      const {appUrl, authHeaders} = await getApiClient();
+      const response = await fetch(`${appUrl}/api/instaworld-orders`, {
         method: "POST",
         headers: {"Content-Type": "application/json", ...authHeaders},
         body: JSON.stringify({orderIds, accountId: chosenAccountId || undefined,
@@ -173,7 +164,7 @@ function Extension() {
       setVerifiedAddress(payload.verifiedAddress || null);
       setAddressValid(!payload.addressError);
       setError(payload.addressError || "");
-      setRelatedOrders(payload.relatedOrders || []);
+      setRelatedOrders([]);
       if (payload.accounts) {
         setAccounts(payload.accounts);
         setAccountId((current) => current
@@ -183,6 +174,7 @@ function Extension() {
       }
       // Weight is always fixed at 0.8 kg
       setCityWarning(payload.cityWarning || "");
+      loadRelatedOrders(orderIds, chosenAccountId);
     } catch (previewError) {
       const apiError = previewError instanceof ApiError ? previewError : null;
       const orderNumbers = apiError?.orderNumbers || [];
@@ -209,8 +201,34 @@ function Extension() {
         setAddressValid(false);
         setRelatedOrders([]);
       }
+      relatedRequestId.current += 1;
+      setMatchingOrdersLoading(false);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadRelatedOrders(orderIds, chosenAccountId = accountId) {
+    const requestId = relatedRequestId.current + 1;
+    relatedRequestId.current = requestId;
+    setMatchingOrdersLoading(true);
+    try {
+      const {appUrl, authHeaders} = await getApiClient();
+      const response = await fetch(`${appUrl}/api/instaworld-orders`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json", ...authHeaders},
+        body: JSON.stringify({orderIds, accountId: chosenAccountId || undefined, mode: "related"}),
+      });
+      const payload = await readApiResponse(response, "Matching order search failed.");
+      if (relatedRequestId.current === requestId) {
+        setRelatedOrders(payload.relatedOrders || []);
+      }
+    } catch {
+      // Suggestions are optional. Selection and booking retain their own
+      // authoritative validation and must not be blocked by discovery failure.
+      if (relatedRequestId.current === requestId) setRelatedOrders([]);
+    } finally {
+      if (relatedRequestId.current === requestId) setMatchingOrdersLoading(false);
     }
   }
 
@@ -219,9 +237,9 @@ function Extension() {
     setSearching(true);
     setError("");
     try {
-      const authHeaders = await getAuthHeaders();
+      const {appUrl, authHeaders} = await getApiClient();
       const response = await fetch(
-        `${APP_URL}/api/instaworld-orders?q=${encodeURIComponent(search.trim())}`,
+        `${appUrl}/api/instaworld-orders?q=${encodeURIComponent(search.trim())}`,
         {headers: {...authHeaders}},
       );
       const payload = await readApiResponse(response, "Order search failed.");
@@ -262,8 +280,8 @@ function Extension() {
     setError("");
     setMessage("");
     try {
-      const authHeaders = await getAuthHeaders();
-      const response = await fetch(`${APP_URL}/api/instaworld-booking`, {
+      const {appUrl, authHeaders} = await getApiClient();
+      const response = await fetch(`${appUrl}/api/instaworld-booking`, {
         method: "POST",
         headers: {"Content-Type": "application/json", ...authHeaders},
         // Weight is always fixed at 0.8 kg
@@ -338,6 +356,7 @@ function Extension() {
           </s-stack>
         ))}
 
+        {matchingOrdersLoading && <s-text>Finding other matching orders…</s-text>}
         {relatedOrders.length > 0 && (
           <>
             <s-text type="strong">Other matching orders</s-text>

@@ -31,8 +31,8 @@ const SOURCE_PATH = "extensions/instaworld-booking/src/ActionExtension.jsx";
 const SOURCE = readFileSync(SOURCE_PATH, "utf8");
 const BULK_SOURCE_PATH = "extensions/instaworld-booking/src/BulkBookExtension.jsx";
 const BULK_SOURCE = readFileSync(BULK_SOURCE_PATH, "utf8");
-
-const EXPECTED_APP_URL = "https://instaworld.barriovibe.com";
+const API_CLIENT_SOURCE_PATH = "extensions/instaworld-booking/src/api-client.js";
+const API_CLIENT_SOURCE = readFileSync(API_CLIENT_SOURCE_PATH, "utf8");
 
 // ---------------------------------------------------------------------------
 // 1. Entry-point export form
@@ -73,15 +73,16 @@ test("extension does not use window.location.origin for API requests", () => {
   );
 });
 
-test("extension uses the production app URL as the fetch base", () => {
-  assert.ok(
-    SOURCE.includes(EXPECTED_APP_URL),
-    `${SOURCE_PATH}: expected production APP_URL '${EXPECTED_APP_URL}' not found.` +
-      " All extension → app-server fetch calls must target the Vercel production URL.",
-  );
+test("extension routes each Shopify app to its own production backend", () => {
+  assert.match(API_CLIENT_SOURCE, /https:\/\/instaworld\.barriovibe\.com/);
+  assert.match(API_CLIENT_SOURCE, /https:\/\/app\.talwarstore\.com/);
+  assert.match(API_CLIENT_SOURCE, /f5529db1addcdd7a0713e2febfb30cdc/);
+  assert.match(API_CLIENT_SOURCE, /b4995f699466e2aeed2761dbb8289e57/);
+  assert.match(SOURCE, /getApiClient/);
+  assert.match(BULK_SOURCE, /getApiClient/);
 });
 
-test("extension fetch calls reference APP_URL constant, not a bare string", () => {
+test("extension fetch calls use the authenticated app URL", () => {
   // The three API paths the extension calls
   const paths = ["/api/instaworld-orders", "/api/instaworld-booking"];
   for (const path of paths) {
@@ -91,6 +92,7 @@ test("extension fetch calls reference APP_URL constant, not a bare string", () =
       `${SOURCE_PATH}: fetch path '${path}' not found — expected the extension to call this app route.`,
     );
   }
+  assert.match(SOURCE, /`\$\{appUrl\}\/api\/instaworld-/);
 });
 
 // ---------------------------------------------------------------------------
@@ -107,7 +109,7 @@ test("extension fetch calls include an Authorization header", () => {
 
 test("extension uses shopify.auth.idToken() to obtain the bearer token", () => {
   assert.ok(
-    SOURCE.includes("shopify.auth.idToken"),
+    API_CLIENT_SOURCE.includes("shopify.auth.idToken"),
     `${SOURCE_PATH}: 'shopify.auth.idToken' not found — this is the correct OIDC ID-token` +
       " API for @shopify/ui-extensions 2026.x; use it to build the Authorization header.",
   );
@@ -117,7 +119,7 @@ test("extension handles a null idToken by throwing before the fetch", () => {
   // The helper must guard against a null token so the user sees an error
   // rather than an unauthenticated request being silently sent.
   assert.ok(
-    SOURCE.includes("if (!token)") || SOURCE.includes("if(!token)"),
+    API_CLIENT_SOURCE.includes("if (!token)") || API_CLIENT_SOURCE.includes("if(!token)"),
     `${SOURCE_PATH}: missing null-token guard — shopify.auth.idToken() can return null;` +
       " the code must throw or show an error before making a fetch call without a token.",
   );
@@ -150,6 +152,9 @@ test("booking extension offers matching customer orders", () => {
   assert.match(SOURCE, /Other matching orders/);
   assert.match(SOURCE, /relatedOrders/);
   assert.match(SOURCE, /Add order #\{order\.orderNumber\}/);
+  assert.match(SOURCE, /mode: "related"/);
+  assert.match(SOURCE, /loadRelatedOrders\(orderIds, chosenAccountId\)/);
+  assert.match(SOURCE, /Finding other matching orders/);
 });
 
 test("booking extension loads connected accounts independently of order validation", () => {

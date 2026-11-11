@@ -4,6 +4,7 @@ import test from "node:test";
 import {combineOrders} from "../app/lib/order-combination.server.ts";
 import {
   getRecentShopifyOrderCandidates,
+  getShopifyOrderMatchCandidatesById,
   getShopifyOrders,
   hasReliableCustomerMatch,
   type ShopifyOrder,
@@ -165,4 +166,26 @@ test("loads recent open matching candidates in one lightweight Shopify query", a
   assert.match(operation, /status:open/);
   assert.doesNotMatch(operation, /customer\s*\{/);
   assert.doesNotMatch(operation, /lineItems/);
+});
+
+test("loads selected matching identities without requesting booking line items", async () => {
+  let operation = "";
+  const admin = {graphql: async (query: string) => {
+    operation = query;
+    return new Response(JSON.stringify({data: {nodes: [{
+      id: "order-current",
+      name: "#1228",
+      email: "ayatzafar47@gmail.com",
+      createdAt: "2026-10-18T00:00:00Z",
+      cancelledAt: null,
+      shippingAddress: matchAddress,
+      billingAddress: null,
+    }]}}));
+  }};
+
+  const candidates = await getShopifyOrderMatchCandidatesById(admin, ["order-current"]);
+  assert.equal(candidates[0].orderNumber, "1228");
+  assert.match(operation, /OrderMatchCandidatesById/);
+  assert.doesNotMatch(operation, /lineItems/);
+  assert.doesNotMatch(operation, /totalPrice/);
 });

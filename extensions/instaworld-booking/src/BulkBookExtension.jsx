@@ -1,19 +1,12 @@
 import "@shopify/ui-extensions/preact";
 import {render} from "preact";
 import {useState} from "preact/hooks";
-
-const APP_URL = "https://instaworld.barriovibe.com";
+import {getApiClient} from "./api-client";
 
 class ApiError extends Error {
   /** @type {string[]} */
   orderNumbers = [];
   orderNumber = "";
-}
-
-async function getAuthHeaders() {
-  const token = await shopify.auth.idToken();
-  if (!token) throw new Error("Unable to obtain an authentication token. Please reload the page.");
-  return {Authorization: `Bearer ${token}`};
 }
 
 /**
@@ -79,9 +72,9 @@ function BulkBookExtension() {
 
   async function bookAll() {
     setRunning(true);
-    let authHeaders;
+    let apiClient;
     try {
-      authHeaders = await getAuthHeaders();
+      apiClient = await getApiClient();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Authentication failed.";
       setResults((prev) => prev.map((r) => ({...r, status: "error", message: `Authentication: ${message}`})));
@@ -94,9 +87,9 @@ function BulkBookExtension() {
       updateResult(orderId, {status: "booking"});
       try {
         // Step 1: preview — get combined data + city check
-        const previewRes = await fetch(`${APP_URL}/api/instaworld-orders`, {
+        const previewRes = await fetch(`${apiClient.appUrl}/api/instaworld-orders`, {
           method: "POST",
-          headers: {"Content-Type": "application/json", ...authHeaders},
+          headers: {"Content-Type": "application/json", ...apiClient.authHeaders},
           body: JSON.stringify({orderIds: [orderId]}),
         });
         const previewPayload = await readApiResponse(previewRes, "Order preview failed.", [409]);
@@ -132,9 +125,9 @@ function BulkBookExtension() {
         updateResult(orderId, {orderNumber});
 
         // Step 2: book
-        const bookRes = await fetch(`${APP_URL}/api/instaworld-booking`, {
+        const bookRes = await fetch(`${apiClient.appUrl}/api/instaworld-booking`, {
           method: "POST",
-          headers: {"Content-Type": "application/json", ...authHeaders},
+          headers: {"Content-Type": "application/json", ...apiClient.authHeaders},
           body: JSON.stringify({
             orderIds: [orderId],
             declaredWeight: 0.8,

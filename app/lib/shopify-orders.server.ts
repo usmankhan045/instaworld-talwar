@@ -66,7 +66,10 @@ function normalizedMatchPhone(value: string | null | undefined): string {
   return digits.startsWith("3") && digits.length === 10 ? `0${digits}` : digits;
 }
 
-export function hasReliableCustomerMatch(current: ShopifyOrder, candidate: ShopifyOrderMatchCandidate): boolean {
+export function hasReliableCustomerMatch(
+  current: Pick<ShopifyOrder, "shippingAddress" | "billingAddress">,
+  candidate: ShopifyOrderMatchCandidate,
+): boolean {
   const currentAddresses = [current.shippingAddress, current.billingAddress].filter(Boolean);
   const candidateAddresses = [candidate.shippingAddress, candidate.billingAddress].filter(Boolean);
   const currentNames = new Set(currentAddresses
@@ -444,4 +447,42 @@ export async function getRecentShopifyOrderCandidates(
     (await result.json()) as GraphqlResponse<{orders: {nodes: any[]}}>,
   );
   return data.orders.nodes.map((order) => parseMatchCandidate(order));
+}
+
+/** Fetch only the customer identity fields needed for related-order discovery. */
+export async function getShopifyOrderMatchCandidatesById(
+  admin: ShopifyAdminGraphql,
+  orderIds: string[],
+): Promise<ShopifyOrderMatchCandidate[]> {
+  const result = await admin.graphql(
+    `#graphql
+      query OrderMatchCandidatesById($ids: [ID!]!) {
+        nodes(ids: $ids) {
+          ... on Order {
+            id
+            name
+            email
+            createdAt
+            cancelledAt
+            shippingAddress {
+              name phone address1 address2 city province provinceCode zip country countryCodeV2
+            }
+            billingAddress {
+              name phone address1 address2 city province provinceCode zip country countryCodeV2
+            }
+          }
+        }
+      }
+    `,
+    {variables: {ids: orderIds}},
+  );
+  const data = assertGraphqlSuccess(
+    (await result.json()) as GraphqlResponse<{nodes: any[]}>,
+  );
+  const candidates = data.nodes.filter(Boolean).map((order) => parseMatchCandidate(order));
+  if (candidates.length !== orderIds.length) {
+    throw new Error("One or more selected Shopify orders could not be found.");
+  }
+  const candidatesById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
+  return orderIds.map((id) => candidatesById.get(id)!);
 }

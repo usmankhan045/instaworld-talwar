@@ -5,6 +5,7 @@ import {selectDeliveryAddress} from "../lib/delivery-selection.server";
 import type {ShopifyOrder} from "../lib/shopify-orders.server";
 import {
   getRecentShopifyOrderCandidates,
+  getShopifyOrderMatchCandidatesById,
   getShopifyOrders,
   getShopifyOrderNumbers,
   hasReliableCustomerMatch,
@@ -17,7 +18,7 @@ import {
   secondaryOrderAvailabilityError,
 } from "../lib/instaworld-order-availability.server";
 import { authenticate } from "../shopify.server";
-import {listInstaWorldAccounts, resolveInstaWorldConfig} from "../lib/instaworld-accounts.server";
+import {resolveInstaWorldConfig} from "../lib/instaworld-accounts.server";
 
 function json(data: unknown, init?: ResponseInit) {
   return new Response(JSON.stringify(data), {
@@ -36,7 +37,7 @@ async function findRelatedOrders(
   admin: Parameters<typeof searchShopifyOrders>[0],
   shop: string,
   selectedOrderIds: string[],
-  currentOrder: ShopifyOrder,
+  currentOrder: Pick<ShopifyOrder, "shippingAddress" | "billingAddress">,
   config: Parameters<typeof checkInstaWorldOrderAvailability>[2],
 ) {
   try {
@@ -136,23 +137,38 @@ export async function action({ request }: ActionFunctionArgs) {
       );
     }
 
-    stage = "Shopify order and InstaWorld account retrieval";
     const selectedAccountId = typeof body?.accountId === "string" ? body.accountId : undefined;
+    if (body?.mode === "related") {
+      stage = "related order discovery";
+      const [config, matchCandidates] = await Promise.all([
+        resolveInstaWorldConfig(session.shop, selectedAccountId),
+        getShopifyOrderMatchCandidatesById(admin, orderIds),
+      ]);
+      const relatedOrders = await findRelatedOrders(
+        admin,
+        session.shop,
+        orderIds,
+        matchCandidates[0],
+        config,
+      );
+      return json({relatedOrders});
+    }
+
+    stage = "Shopify order and InstaWorld account retrieval";
     const [config, orders] = await Promise.all([
       resolveInstaWorldConfig(session.shop, selectedAccountId),
       getShopifyOrders(admin, orderIds),
     ]);
 
     const addressOrderId = typeof body?.addressOrderId === "string" ? body.addressOrderId : undefined;
-    stage = "parallel order validation and customer matching";
-    const [secondaryAvailability, addressSelection, relatedOrders] = await Promise.all([
+    stage = "parallel order validation and address verification";
+    const [secondaryAvailability, addressSelection] = await Promise.all([
       checkInstaWorldOrderAvailability(
       session.shop,
       orders.slice(1),
       config,
       ),
       selectDeliveryAddress(orders, undefined, addressOrderId),
-      findRelatedOrders(admin, session.shop, orderIds, orders[0], config),
     ]);
     const availabilityError = secondaryOrderAvailabilityError(secondaryAvailability);
     if (availabilityError) {
@@ -166,20 +182,16 @@ export async function action({ request }: ActionFunctionArgs) {
     stage = "address/city validation";
     // Check if InstaWorld services the destination city — non-blocking warning
     stage = "InstaWorld city serviceability check";
-    const [cityWarning, accounts] = await Promise.all([
-      addressVerification.ok
-        ? checkCityServiceable(combined.consignee.city ?? "", config)
-        : Promise.resolve(null),
-      listInstaWorldAccounts(session.shop),
-    ]);
+    const cityWarning = addressVerification.ok
+      ? await checkCityServiceable(combined.consignee.city ?? "", config)
+      : null;
 
     return json({
       combined,
-      relatedOrders,
+      relatedOrders: [],
       cityWarning,
       verifiedAddress: addressVerification.ok ? addressVerification.verifiedAddress : null,
       addressError: addressVerification.ok ? null : addressVerification.message,
-      accounts,
     });
   } catch (error) {
     // Preserve Shopify authentication redirects and thrown responses.

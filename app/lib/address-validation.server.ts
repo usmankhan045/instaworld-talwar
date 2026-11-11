@@ -571,16 +571,32 @@ async function verifyDeliveryAddressUncached(
   // provider verifies it. Previously every query was sent to one provider and
   // then every query was repeated against the fallback, even after a match.
   for (const query of queries) {
-    const [mapsResult, nominatimResult] = await Promise.allSettled([
-      geocodeMapsCo(query),
-      geocodeNominatim(query),
-    ]);
+    const providers = [
+      geocodeMapsCo(query)
+        .then((value) => ({status: "fulfilled" as const, value, source: "geocode.maps.co" as const}))
+        .catch(() => ({status: "rejected" as const, value: [], source: "geocode.maps.co" as const})),
+      geocodeNominatim(query)
+        .then((value) => ({status: "fulfilled" as const, value, source: "nominatim" as const}))
+        .catch(() => ({status: "rejected" as const, value: [], source: "nominatim" as const})),
+    ];
+    const first = await Promise.race(providers.map((provider, index) => provider.then((result) => ({index, result}))));
+    const firstCandidates = first.result.status === "fulfilled"
+      ? first.result.value
+        .map((candidate) => ({candidate, source: first.result.source}))
+        .sort((left, right) => cityEvidenceRank(right.candidate, city) - cityEvidenceRank(left.candidate, city))
+      : [];
+    if (firstCandidates.length > 0) sawCandidate = true;
+    for (const {candidate, source} of firstCandidates) {
+      const result = candidateResult(candidate, source, input);
+      // A positive result is conclusive. Do not wait for a slower provider
+      // merely to confirm an address that has already passed every check.
+      if (result.ok) return result;
+    }
+
+    const results = [first.result, await providers[first.index === 0 ? 1 : 0]];
     const candidates: Array<{candidate: GeocodeCandidate; source: VerifiedAddress["source"]}> = [
-      ...(mapsResult.status === "fulfilled"
-        ? mapsResult.value.map((candidate) => ({candidate, source: "geocode.maps.co" as const}))
-        : []),
-      ...(nominatimResult.status === "fulfilled"
-        ? nominatimResult.value.map((candidate) => ({candidate, source: "nominatim" as const}))
+      ...results.flatMap((provider) => provider.status === "fulfilled"
+        ? provider.value.map((candidate) => ({candidate, source: provider.source}))
         : []),
     ].sort((left, right) => cityEvidenceRank(right.candidate, city) - cityEvidenceRank(left.candidate, city));
 
