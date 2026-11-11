@@ -156,9 +156,13 @@ test("booking extension loads connected accounts independently of order validati
   assert.match(SOURCE, /\/api\/instaworld-accounts/);
   assert.match(SOURCE, /async function loadAccounts/);
   assert.match(SOURCE, /accounts\.length > 1/);
-  assert.match(SOURCE, /Book with InstaWorld account/);
+  assert.match(SOURCE, /cache: "no-store"/);
+  assert.match(SOURCE, /accounts\.map\(\(account\)/);
+  assert.match(SOURCE, /`Book with \$\{account\.name\}`/);
+  assert.match(SOURCE, /bookShipment\(account\.id\)/);
 });
 
-test("changing the InstaWorld account revalidates the order preview", () => {
-  assert.match(SOURCE, /refreshPreview\(selectedOrderIds, addressOrderId, nextAccountId\)/);
+test("booking always sends the explicitly chosen InstaWorld account", () => {
+  assert.match(SOURCE, /async function bookShipment\(chosenAccountId = accountId\)/);
+  assert.match(SOURCE, /accountId: chosenAccountId \|\| undefined/);
 });

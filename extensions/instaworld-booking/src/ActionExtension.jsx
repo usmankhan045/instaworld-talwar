@@ -108,6 +108,7 @@ function Extension() {
   const [cityWarning, setCityWarning] = useState("");
   const [accounts, setAccounts] = useState([]);
   const [accountId, setAccountId] = useState("");
+  const [accountsLoading, setAccountsLoading] = useState(true);
 
   useEffect(() => {
     if (!currentOrderId) {
@@ -127,6 +128,7 @@ function Extension() {
       const authHeaders = await getAuthHeaders();
       const response = await fetch(`${APP_URL}/api/instaworld-accounts`, {
         headers: {...authHeaders},
+        cache: "no-store",
       });
       const payload = await readApiResponse(response, "Unable to load InstaWorld accounts.");
       const availableAccounts = payload.accounts || [];
@@ -137,6 +139,8 @@ function Extension() {
         || "");
     } catch (accountError) {
       setError(accountError instanceof Error ? accountError.message : "Unable to load InstaWorld accounts.");
+    } finally {
+      setAccountsLoading(false);
     }
   }
 
@@ -248,7 +252,7 @@ function Extension() {
     refreshPreview(nextIds, nextAddressOrderId);
   }
 
-  async function bookShipment() {
+  async function bookShipment(chosenAccountId = accountId) {
     if (selectedOrderIds.length < 1) {
       setError("No order selected.");
       return;
@@ -264,7 +268,7 @@ function Extension() {
         headers: {"Content-Type": "application/json", ...authHeaders},
         // Weight is always fixed at 0.8 kg
         body: JSON.stringify({orderIds: selectedOrderIds, declaredWeight: 0.8,
-          accountId: accountId || undefined, addressOrderId: combined?.addressOrderId}),
+          accountId: chosenAccountId || undefined, addressOrderId: combined?.addressOrderId}),
       });
       const payload = await readApiResponse(response, "Booking failed.");
       if (!payload.success) {
@@ -299,18 +303,9 @@ function Extension() {
           Select one or more compatible orders. No shipment is created until you confirm.
         </s-text>
 
-        {accounts.length > 1 && (
-          <s-select
-            label="Book with InstaWorld account"
-            value={accountId}
-            onChange={(event) => {
-              const nextAccountId = event.currentTarget.value;
-              setAccountId(nextAccountId);
-              refreshPreview(selectedOrderIds, addressOrderId, nextAccountId);
-            }}
-          >
-            {accounts.map((account) => <s-option key={account.id} value={account.id}>{account.name} · {account.mode}</s-option>)}
-          </s-select>
+        {accountsLoading && <s-text>Loading connected InstaWorld accounts…</s-text>}
+        {!accountsLoading && accounts.length === 0 && (
+          <s-banner tone="critical">No InstaWorld account is connected. Connect an account before booking.</s-banner>
         )}
 
         <s-stack direction="inline" gap="base">
@@ -417,16 +412,37 @@ function Extension() {
         {cityWarning && <s-banner tone="warning">{cityWarning}</s-banner>}
         {error && <s-banner tone="critical">{error}</s-banner>}
         {message && <s-banner tone="success">{message}</s-banner>}
+
+        {accounts.length > 1 && (
+          <>
+            <s-text type="strong">Choose the InstaWorld account for this booking</s-text>
+            <s-stack direction="inline" gap="base">
+              {accounts.map((account) => (
+                <s-button
+                  key={account.id}
+                  variant={account.isDefault ? "primary" : "secondary"}
+                  onClick={() => bookShipment(account.id)}
+                  loading={submitting}
+                  disabled={submitting || loading || selectedOrderIds.length < 1 || !combined || !addressValid}
+                >
+                  {submitting ? "Booking…" : `Book with ${account.name}`}
+                </s-button>
+              ))}
+            </s-stack>
+          </>
+        )}
       </s-stack>
 
-      <s-button
-        slot="primary-action"
-        onClick={bookShipment}
-        loading={submitting}
-        disabled={submitting || loading || selectedOrderIds.length < 1 || !combined || !addressValid}
-      >
-        {submitting ? "Booking…" : "Confirm & Book InstaWorld"}
-      </s-button>
+      {accounts.length === 1 && (
+        <s-button
+          slot="primary-action"
+          onClick={() => bookShipment(accounts[0].id)}
+          loading={submitting}
+          disabled={submitting || loading || accountsLoading || selectedOrderIds.length < 1 || !combined || !addressValid}
+        >
+          {submitting ? "Booking…" : `Book with ${accounts[0].name}`}
+        </s-button>
+      )}
       <s-button slot="secondary-actions" onClick={close}>
         Cancel
       </s-button>
