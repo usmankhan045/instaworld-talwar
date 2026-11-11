@@ -159,6 +159,10 @@ const ORDER_FIELDS = `
         }
         variant {
           title
+          selectedOptions {
+            name
+            value
+          }
         }
         originalUnitPriceSet {
           shopMoney {
@@ -197,10 +201,15 @@ function productDetail(item: any): string | null {
   // stale metafields cannot leak an old color into the booking invoice.
   const title = String(item.title ?? "").trim();
   const titleColor = title.match(/^.+\s[-–—]\s(.+)$/)?.[1]?.trim();
-  if (titleColor) return titleColor;
-
   const metafield = String(item.product?.color?.value ?? "").trim();
-  if (metafield) return metafield;
+  const color = titleColor || metafield;
+  const sizeOption = (item.variant?.selectedOptions ?? [])
+    .find((option: any) => /\bsizes?\b/i.test(String(option?.name ?? "")));
+  const size = String(sizeOption?.value ?? "").trim();
+
+  if (color && size) return `${color} / ${size}`;
+  if (color) return color;
+
   const variantTitle = String(item.variant?.title ?? "").trim();
   return variantTitle && variantTitle.toLowerCase() !== "default title" ? variantTitle : null;
 }

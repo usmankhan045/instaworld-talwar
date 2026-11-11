@@ -12,8 +12,8 @@ import {
 
 test("shipment items prefer title colors and safely fall back to stored product details", async () => {
   const products = [
-    {title: "Classic Shirt - Off White", product: {color: {value: "Warm White"}}, variant: {title: "Half white / Medium"}},
-    {title: "Leather - Travel Sandal — Pure Black", product: {color: {value: "Black"}}, variant: {title: "Default Title"}},
+    {title: "Classic Jacket - Off White", product: {color: {value: "Warm White"}}, variant: {title: "Half white / Medium", selectedOptions: [{name: "Color", value: "Half white"}, {name: "Jacket Sizes", value: "Medium"}]}},
+    {title: "Leather - Travel Sandal — Pure Black", product: {color: {value: "Black"}}, variant: {title: "Pure Black / 42", selectedOptions: [{name: "Color", value: "Pure Black"}, {name: "Shoe size", value: "42"}]}},
     {title: "Leather Sandal", product: {color: {value: "Pebble Grey"}}, variant: {title: "Default Title"}},
     {title: "Organic Jaggery", product: {color: null}, variant: {title: "Default Title"}},
   ];
@@ -34,8 +34,8 @@ test("shipment items prefer title colors and safely fall back to stored product 
 
   const [order] = await getShopifyOrders(admin, ["gid://shopify/Order/1"]);
   assert.deepEqual(order.lineItems.map(({title, color}) => ({title, color})), [
-    {title: "Classic Shirt - Off White", color: "Off White"},
-    {title: "Leather - Travel Sandal — Pure Black", color: "Pure Black"},
+    {title: "Classic Jacket - Off White", color: "Off White / Medium"},
+    {title: "Leather - Travel Sandal — Pure Black", color: "Pure Black / 42"},
     {title: "Leather Sandal", color: "Pebble Grey"},
     {title: "Organic Jaggery", color: null},
   ]);
@@ -51,8 +51,8 @@ test("shipment items prefer title colors and safely fall back to stored product 
     },
   }]);
   assert.deepEqual(combined.items.map(({title, color}) => ({title, color})), [
-    {title: "Classic Shirt - Off White", color: "Off White"},
-    {title: "Leather - Travel Sandal — Pure Black", color: "Pure Black"},
+    {title: "Classic Jacket - Off White", color: "Off White / Medium"},
+    {title: "Leather - Travel Sandal — Pure Black", color: "Pure Black / 42"},
     {title: "Leather Sandal", color: "Pebble Grey"},
     {title: "Organic Jaggery", color: null},
   ]);
