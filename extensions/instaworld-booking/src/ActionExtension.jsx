@@ -13,6 +13,7 @@ class ApiError extends Error {
   /** @type {string[]} */
   orderNumbers = [];
   orderNumber = "";
+  /** @type {string[]} */
   blockedOrderIds = [];
 }
 
@@ -36,6 +37,11 @@ async function getAuthHeaders() {
   return {Authorization: `Bearer ${token}`};
 }
 
+/**
+ * @param {Response} response
+ * @param {string} fallbackMessage
+ * @returns {Promise<any>}
+ */
 async function readApiResponse(response, fallbackMessage) {
   const text = await response.text();
   /** @type {any} */
@@ -112,7 +118,33 @@ function Extension() {
     refreshPreview([currentOrderId]);
   }, [currentOrderId]);
 
-  async function refreshPreview(orderIds, chosenAddressOrderId = addressOrderId) {
+  useEffect(() => {
+    loadAccounts();
+  }, []);
+
+  async function loadAccounts() {
+    try {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${APP_URL}/api/instaworld-accounts`, {
+        headers: {...authHeaders},
+      });
+      const payload = await readApiResponse(response, "Unable to load InstaWorld accounts.");
+      const availableAccounts = payload.accounts || [];
+      setAccounts(availableAccounts);
+      setAccountId((current) => current
+        || availableAccounts.find((account) => account.isDefault)?.id
+        || availableAccounts[0]?.id
+        || "");
+    } catch (accountError) {
+      setError(accountError instanceof Error ? accountError.message : "Unable to load InstaWorld accounts.");
+    }
+  }
+
+  async function refreshPreview(
+    orderIds,
+    chosenAddressOrderId = addressOrderId,
+    chosenAccountId = accountId,
+  ) {
     setLoading(true);
     setError("");
     try {
@@ -120,7 +152,7 @@ function Extension() {
       const response = await fetch(`${APP_URL}/api/instaworld-orders`, {
         method: "POST",
         headers: {"Content-Type": "application/json", ...authHeaders},
-        body: JSON.stringify({orderIds, accountId: accountId || undefined,
+        body: JSON.stringify({orderIds, accountId: chosenAccountId || undefined,
           addressOrderId: chosenAddressOrderId || undefined}),
       });
       const payload = await readApiResponse(response, "The selected orders cannot be combined.");
@@ -138,8 +170,13 @@ function Extension() {
       setAddressValid(!payload.addressError);
       setError(payload.addressError || "");
       setRelatedOrders(payload.relatedOrders || []);
-      setAccounts(payload.accounts || []);
-      if (!accountId && payload.accounts?.length) setAccountId(payload.accounts.find((account) => account.isDefault)?.id || payload.accounts[0].id);
+      if (payload.accounts) {
+        setAccounts(payload.accounts);
+        setAccountId((current) => current
+          || payload.accounts.find((account) => account.isDefault)?.id
+          || payload.accounts[0]?.id
+          || "");
+      }
       // Weight is always fixed at 0.8 kg
       setCityWarning(payload.cityWarning || "");
     } catch (previewError) {
@@ -263,7 +300,15 @@ function Extension() {
         </s-text>
 
         {accounts.length > 1 && (
-          <s-select label="Book with InstaWorld account" value={accountId} onChange={(event) => setAccountId(event.currentTarget.value)}>
+          <s-select
+            label="Book with InstaWorld account"
+            value={accountId}
+            onChange={(event) => {
+              const nextAccountId = event.currentTarget.value;
+              setAccountId(nextAccountId);
+              refreshPreview(selectedOrderIds, addressOrderId, nextAccountId);
+            }}
+          >
             {accounts.map((account) => <s-option key={account.id} value={account.id}>{account.name} · {account.mode}</s-option>)}
           </s-select>
         )}

@@ -151,3 +151,14 @@ test("booking extension offers matching customer orders", () => {
   assert.match(SOURCE, /relatedOrders/);
   assert.match(SOURCE, /Add order #\{order\.orderNumber\}/);
 });
+
+test("booking extension loads connected accounts independently of order validation", () => {
+  assert.match(SOURCE, /\/api\/instaworld-accounts/);
+  assert.match(SOURCE, /async function loadAccounts/);
+  assert.match(SOURCE, /accounts\.length > 1/);
+  assert.match(SOURCE, /Book with InstaWorld account/);
+});
+
+test("changing the InstaWorld account revalidates the order preview", () => {
+  assert.match(SOURCE, /refreshPreview\(selectedOrderIds, addressOrderId, nextAccountId\)/);
+});
