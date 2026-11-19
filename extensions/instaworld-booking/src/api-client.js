@@ -1,5 +1,6 @@
 const APP_URL_BY_CLIENT_ID = {
   // BarrioVibe InstaWorld apps
+  "a1226b0825b384ca48f3a28e05cefc89": "https://instaworld.barriovibe.com",
   "8d9753c41f2c0b5d3378ea265f9599ae": "https://instaworld.barriovibe.com",
   "f5529db1addcdd7a0713e2febfb30cdc": "https://instaworld.barriovibe.com",
   // Talwar InstaWorld apps
