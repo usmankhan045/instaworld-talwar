@@ -1,0 +1,26 @@
+# Learn more about configuring with the Shopify CLI at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "dab986391fdc23ce16c840685ac3bea6"
+name = "InstaWorld booking"
+application_url = "https://instaworld.barriovibe.com"
+embedded = true
+
+[access_scopes]
+scopes = "read_merchant_managed_fulfillment_orders,read_orders,read_products,write_fulfillments,write_merchant_managed_fulfillment_orders"
+
+[auth]
+redirect_urls = [ "https://instaworld.barriovibe.com/auth/callback" ]
+
+[webhooks]
+api_version = "2026-10"
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = [ "app/uninstalled" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/scopes_update"
+  topics = [ "app/scopes_update" ]
+
+[build]
+automatically_update_urls_on_dev = true

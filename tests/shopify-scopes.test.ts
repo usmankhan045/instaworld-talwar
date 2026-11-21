@@ -7,6 +7,7 @@ const APP_CONFIGS = [
   "shopify.app.private.toml",
   "shopify.app.partner.toml",
   "shopify.app.talwar-organics-instaworld.toml",
+  "shopify.app.footwear.toml",
 ];
 
 test("all Shopify app configurations request scopes required by fulfillment sync", () => {
