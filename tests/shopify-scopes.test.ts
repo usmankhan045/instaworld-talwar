@@ -27,3 +27,12 @@ test("runtime required scopes include fulfillment event access", () => {
   const serverSource = readFileSync("app/shopify.server.ts", "utf8");
   assert.match(serverSource, /requiredScopes\s*=\s*\[[\s\S]*"write_fulfillments"/);
 });
+
+test("runtime supports merchant custom app distribution configuration", () => {
+  const serverSource = readFileSync("app/shopify.server.ts", "utf8");
+  const envExample = readFileSync(".env.example", "utf8");
+
+  assert.match(serverSource, /SHOPIFY_APP_DISTRIBUTION/);
+  assert.match(serverSource, /AppDistribution\.SingleMerchant/);
+  assert.match(envExample, /^SHOPIFY_APP_DISTRIBUTION=app_store$/m);
+});
