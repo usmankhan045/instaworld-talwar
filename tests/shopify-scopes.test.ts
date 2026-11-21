@@ -33,6 +33,7 @@ test("runtime supports merchant custom app distribution configuration", () => {
   const envExample = readFileSync(".env.example", "utf8");
 
   assert.match(serverSource, /SHOPIFY_APP_DISTRIBUTION/);
+  assert.match(serverSource, /AppDistribution\.ShopifyAdmin/);
   assert.match(serverSource, /AppDistribution\.SingleMerchant/);
   assert.match(envExample, /^SHOPIFY_APP_DISTRIBUTION=app_store$/m);
 });

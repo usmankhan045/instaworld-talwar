@@ -15,10 +15,13 @@ const requiredScopes = [
   "write_merchant_managed_fulfillment_orders",
 ];
 const configuredScopes = process.env.SCOPES?.split(",").map((scope) => scope.trim()).filter(Boolean) ?? [];
+const configuredDistribution = process.env.SHOPIFY_APP_DISTRIBUTION?.toLowerCase();
 const distribution =
-  process.env.SHOPIFY_APP_DISTRIBUTION?.toLowerCase() === "single_merchant"
-    ? AppDistribution.SingleMerchant
-    : AppDistribution.AppStore;
+  configuredDistribution === "shopify_admin"
+    ? AppDistribution.ShopifyAdmin
+    : configuredDistribution === "single_merchant"
+      ? AppDistribution.SingleMerchant
+      : AppDistribution.AppStore;
 
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
