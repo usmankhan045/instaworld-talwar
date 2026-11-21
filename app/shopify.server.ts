@@ -15,14 +15,6 @@ const requiredScopes = [
   "write_merchant_managed_fulfillment_orders",
 ];
 const configuredScopes = process.env.SCOPES?.split(",").map((scope) => scope.trim()).filter(Boolean) ?? [];
-const configuredDistribution = process.env.SHOPIFY_APP_DISTRIBUTION?.toLowerCase();
-const distribution =
-  configuredDistribution === "shopify_admin"
-    ? AppDistribution.ShopifyAdmin
-    : configuredDistribution === "single_merchant"
-      ? AppDistribution.SingleMerchant
-      : AppDistribution.AppStore;
-
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
@@ -31,7 +23,7 @@ const shopify = shopifyApp({
   appUrl: process.env.SHOPIFY_APP_URL || "",
   authPathPrefix: "/auth",
   sessionStorage: new PrismaSessionStorage(prisma),
-  distribution,
+  distribution: AppDistribution.AppStore,
   future: {
     expiringOfflineAccessTokens: true,
   },

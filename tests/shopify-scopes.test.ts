@@ -28,12 +28,9 @@ test("runtime required scopes include fulfillment event access", () => {
   assert.match(serverSource, /requiredScopes\s*=\s*\[[\s\S]*"write_fulfillments"/);
 });
 
-test("runtime supports merchant custom app distribution configuration", () => {
+test("runtime uses OAuth app-store distribution", () => {
   const serverSource = readFileSync("app/shopify.server.ts", "utf8");
-  const envExample = readFileSync(".env.example", "utf8");
 
-  assert.match(serverSource, /SHOPIFY_APP_DISTRIBUTION/);
-  assert.match(serverSource, /AppDistribution\.ShopifyAdmin/);
-  assert.match(serverSource, /AppDistribution\.SingleMerchant/);
-  assert.match(envExample, /^SHOPIFY_APP_DISTRIBUTION=app_store$/m);
+  assert.match(serverSource, /distribution:\s*AppDistribution\.AppStore/);
+  assert.doesNotMatch(serverSource, /AppDistribution\.ShopifyAdmin/);
 });
