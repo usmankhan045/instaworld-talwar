@@ -8,6 +8,8 @@ const APP_URL_BY_CLIENT_ID = {
   "b4995f699466e2aeed2761dbb8289e57": "https://app.talwarstore.com",
   // Talwar Footwear merchant custom app
   "dab986391fdc23ce16c840685ac3bea6": "https://instaworld.barriovibe.com",
+  // Talwar group merchant app
+  "6626e22ffb37c9261fdfcbb6677c6b63": "https://booking.barriovibe.com",
 };
 
 function tokenAudience(token) {
