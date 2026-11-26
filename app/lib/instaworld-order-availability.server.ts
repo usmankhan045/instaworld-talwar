@@ -47,26 +47,25 @@ export async function checkInstaWorldOrderAvailability(
   const lookup = options.findShipment ?? findShipmentByReference;
   return Promise.all(orders.map(async (order) => {
     const references = [...new Set([order.orderNumber, ...(linkedReferences.get(order.id) ?? [])])];
-    try {
-      for (const reference of references) {
-        const shipment = await lookup(reference, config);
-        if (shipment && !isCancelledShipment(shipment)) {
-          return {
-            orderId: order.id,
-            orderNumber: order.orderNumber,
-            available: false,
-            verified: true,
-            existingReference: reference,
-            trackingNumber: shipment.trackingNumber,
-          };
-        }
-      }
-      return {orderId: order.id, orderNumber: order.orderNumber, available: true, verified: true};
-    } catch {
-      // Fail closed: a second order is only eligible after InstaWorld confirms
-      // that it has no active or completed shipment.
+    const results = await Promise.allSettled(references.map((reference) => lookup(reference, config)));
+    const activeIndex = results.findIndex((result) => result.status === "fulfilled" &&
+      result.value && !isCancelledShipment(result.value));
+    if (activeIndex >= 0) {
+      const shipment = results[activeIndex] as PromiseFulfilledResult<InstaWorldShipment>;
+      return {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        available: false,
+        verified: true,
+        existingReference: references[activeIndex],
+        trackingNumber: shipment.value.trackingNumber,
+      };
+    }
+    // Fail closed: every reference must be verified before suggesting an order.
+    if (results.some((result) => result.status === "rejected")) {
       return {orderId: order.id, orderNumber: order.orderNumber, available: false, verified: false};
     }
+    return {orderId: order.id, orderNumber: order.orderNumber, available: true, verified: true};
   }));
 }
 

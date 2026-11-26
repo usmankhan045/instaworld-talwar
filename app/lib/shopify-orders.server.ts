@@ -155,6 +155,7 @@ const ORDER_FIELDS = `
         title
         sku
         quantity
+        currentQuantity
         product {
           color: metafield(namespace: "custom", key: "color") {
             value
@@ -256,17 +257,25 @@ function parseOrder(node: any): ShopifyOrder {
     customer: null,
     shippingAddress: address(node.shippingAddress),
     billingAddress: address(node.billingAddress),
-    lineItems: (node.lineItems?.edges ?? []).map(({ node: item }: any) => {
-      return {
-        id: String(item.id),
-        title: String(item.title || "Product"),
-        sku: item.sku ?? null,
-        quantity: Number(item.quantity),
-        color: productDetail(item),
-        unitPrice: shopMoney(item.originalUnitPriceSet),
-        totalPrice: shopMoney(item.discountedTotalSet),
-      };
-    }),
+    lineItems: (node.lineItems?.edges ?? [])
+      .map(({ node: item }: any) => {
+        // Shopify retains an edited-away line item's original `quantity` for
+        // order history. `currentQuantity` is the quantity that remains on the
+        // order after edits, refunds, and removals, so it is the only quantity
+        // that is safe to send to the courier.
+        const currentQuantity = Number(item.currentQuantity);
+        return {
+          id: String(item.id),
+          title: String(item.title || "Product"),
+          sku: item.sku ?? null,
+          quantity: currentQuantity,
+          color: productDetail(item),
+          unitPrice: shopMoney(item.originalUnitPriceSet),
+          totalPrice: shopMoney(item.discountedTotalSet),
+        };
+      })
+      .filter((item: ShopifyOrder["lineItems"][number]) =>
+        Number.isInteger(item.quantity) && item.quantity > 0),
   };
 }
 

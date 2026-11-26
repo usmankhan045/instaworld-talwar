@@ -27,6 +27,7 @@ test("shipment items prefer title colors and safely fall back to stored product 
       id: `gid://shopify/LineItem/${index + 1}`,
       ...product,
       quantity: 1,
+      currentQuantity: 1,
       originalUnitPriceSet: {shopMoney: {amount: "3900", currencyCode: "PKR"}},
       discountedTotalSet: {shopMoney: {amount: "3900", currencyCode: "PKR"}},
     }}))},
@@ -56,6 +57,52 @@ test("shipment items prefer title colors and safely fall back to stored product 
     {title: "Leather - Travel Sandal — Pure Black", color: "Pure Black / 42"},
     {title: "Leather Sandal", color: "Pebble Grey"},
     {title: "Organic Jaggery", color: null},
+  ]);
+});
+
+test("books only current quantities after a Shopify order edit", async () => {
+  const lineItem = (id: number, size: string, quantity: number, currentQuantity: number) => ({
+    node: {
+      id: `gid://shopify/LineItem/${id}`,
+      title: "Handmade Soft Slippers - Black",
+      sku: `SLIPPER-${size}`,
+      quantity,
+      currentQuantity,
+      product: {color: {value: "Black"}},
+      variant: {title: `Black / ${size}`, selectedOptions: [{name: "Size", value: size}]},
+      originalUnitPriceSet: {shopMoney: {amount: "4200", currencyCode: "PKR"}},
+      discountedTotalSet: {shopMoney: {amount: currentQuantity ? "4200" : "0", currencyCode: "PKR"}},
+    },
+  });
+  const node = {
+    id: "gid://shopify/Order/1044",
+    name: "#1044",
+    createdAt: "2026-11-26T00:00:00Z",
+    displayFinancialStatus: "PENDING",
+    totalPriceSet: {shopMoney: {amount: "4200", currencyCode: "PKR"}},
+    totalOutstandingSet: {shopMoney: {amount: "4200", currencyCode: "PKR"}},
+    shippingAddress: matchAddress,
+    lineItems: {edges: [
+      lineItem(1, "11", 1, 0),
+      lineItem(2, "10", 1, 1),
+    ]},
+  };
+  let operation = "";
+  const admin = {graphql: async (query: string) => {
+    operation = query;
+    return {json: async () => ({data: {nodes: [node]}})};
+  }};
+
+  const [order] = await getShopifyOrders(admin, [node.id]);
+
+  assert.match(operation, /currentQuantity/);
+  assert.deepEqual(order.lineItems.map(({sku, quantity}) => ({sku, quantity})), [
+    {sku: "SLIPPER-10", quantity: 1},
+  ]);
+  const combined = combineOrders([order]);
+  assert.equal(combined.totalQuantity, 1);
+  assert.deepEqual(combined.items.map(({sku, quantity}) => ({sku, quantity})), [
+    {sku: "SLIPPER-10", quantity: 1},
   ]);
 });
 

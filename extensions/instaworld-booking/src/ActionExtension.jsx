@@ -142,6 +142,9 @@ function Extension() {
     setRelatedOrders([]);
     setLoading(true);
     setError("");
+    // Discovery has its own request and eligibility checks. Start it while
+    // the details preview is loading instead of waiting for courier city checks.
+    loadRelatedOrders(orderIds, chosenAccountId);
     try {
       const {appUrl, authHeaders} = await getApiClient();
       const response = await fetch(`${appUrl}/api/instaworld-orders`, {
@@ -152,6 +155,8 @@ function Extension() {
       });
       const payload = await readApiResponse(response, "The selected orders cannot be combined.");
       if (payload.orders) {
+        relatedRequestId.current += 1;
+        setMatchingOrdersLoading(false);
         setSelectedOrders(payload.orders);
         setCombined(null);
         setVerifiedAddress(null);
@@ -164,7 +169,6 @@ function Extension() {
       setVerifiedAddress(payload.verifiedAddress || null);
       setAddressValid(!payload.addressError);
       setError(payload.addressError || "");
-      setRelatedOrders([]);
       if (payload.accounts) {
         setAccounts(payload.accounts);
         setAccountId((current) => current
@@ -174,7 +178,6 @@ function Extension() {
       }
       // Weight is always fixed at 0.8 kg
       setCityWarning(payload.cityWarning || "");
-      loadRelatedOrders(orderIds, chosenAccountId);
     } catch (previewError) {
       const apiError = previewError instanceof ApiError ? previewError : null;
       const orderNumbers = apiError?.orderNumbers || [];
@@ -357,7 +360,7 @@ function Extension() {
         ))}
 
         {matchingOrdersLoading && <s-text>Finding other matching orders…</s-text>}
-        {relatedOrders.length > 0 && (
+        {!loading && relatedOrders.length > 0 && (
           <>
             <s-text type="strong">Other matching orders</s-text>
             <s-text>Add another matching order to include it in this single shipment. Compatibility will be checked before booking.</s-text>

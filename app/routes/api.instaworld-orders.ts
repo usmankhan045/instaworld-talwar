@@ -41,16 +41,22 @@ async function findRelatedOrders(
   config: Parameters<typeof checkInstaWorldOrderAvailability>[2],
 ) {
   try {
-    const candidates = await getRecentShopifyOrderCandidates(admin);
+    const identity = [currentOrder.shippingAddress, currentOrder.billingAddress].filter(Boolean);
+    const phones = [...new Set(identity.map((address) => String(address?.phone ?? "").replace(/\D/g, "")).filter((phone) => phone.length >= 10))];
+    const searches = phones.map((phone) => `phone:${phone}`);
+    const results = await Promise.allSettled([
+      getRecentShopifyOrderCandidates(admin),
+      ...searches.map((query) => searchShopifyOrders(admin, query)),
+    ]);
+    const candidates = [...new Map(results.flatMap((result) => result.status === "fulfilled" ? result.value : [])
+      .map((candidate) => [candidate.id, candidate])).values()];
     const matchingCandidates = candidates
       .filter((candidate) => !selectedOrderIds.includes(candidate.id) && !candidate.cancelledAt)
       .filter((candidate) => hasReliableCustomerMatch(currentOrder, candidate))
       .slice(0, 24);
     const availability = await checkInstaWorldOrderAvailability(shop, matchingCandidates, config);
     const eligibleIds = new Set(availability
-      // A transient courier lookup must not hide a Shopify match. Selection
-      // and booking still revalidate and fail closed before combining orders.
-      .filter((result) => !result.verified || result.available)
+      .filter((result) => result.verified && result.available)
       .map((result) => result.orderId));
     return matchingCandidates
       .filter((candidate) => eligibleIds.has(candidate.id))
@@ -162,29 +168,22 @@ export async function action({ request }: ActionFunctionArgs) {
 
     const addressOrderId = typeof body?.addressOrderId === "string" ? body.addressOrderId : undefined;
     stage = "parallel order validation and address verification";
-    const [secondaryAvailability, addressSelection] = await Promise.all([
+    const addressSelection = await selectDeliveryAddress(orders, undefined, addressOrderId);
+    const {combined, verification: addressVerification} = addressSelection;
+    const [secondaryAvailability, cityWarning] = await Promise.all([
       checkInstaWorldOrderAvailability(
-      session.shop,
-      orders.slice(1),
-      config,
+        session.shop,
+        orders.slice(1),
+        config,
       ),
-      selectDeliveryAddress(orders, undefined, addressOrderId),
+      addressVerification.ok
+        ? checkCityServiceable(combined.consignee.city ?? "", config)
+        : Promise.resolve(null),
     ]);
     const availabilityError = secondaryOrderAvailabilityError(secondaryAvailability);
     if (availabilityError) {
       return json({...availabilityError, stage}, {status: 409});
     }
-
-    stage = "order combination";
-    const {combined, verification: addressVerification} = addressSelection;
-
-    // Check address–city match (fail-open: only block if we get a confident mismatch)
-    stage = "address/city validation";
-    // Check if InstaWorld services the destination city — non-blocking warning
-    stage = "InstaWorld city serviceability check";
-    const cityWarning = addressVerification.ok
-      ? await checkCityServiceable(combined.consignee.city ?? "", config)
-      : null;
 
     return json({
       combined,

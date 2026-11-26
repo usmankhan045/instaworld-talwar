@@ -61,3 +61,23 @@ test("checks a previous combined reference and fails closed when InstaWorld is u
   assert.equal(unavailable[0].verified, false);
   assert.match(secondaryOrderAvailabilityError(unavailable)?.message || "", /could not verify/i);
 });
+
+test("checks all references concurrently and never suggests an unverified order", async () => {
+  const started: string[] = [];
+  let release: (() => void) | undefined;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const pending = checkInstaWorldOrderAvailability("shop", [{id: "2", orderNumber: "1220"}], config, {
+    linkedReferences: new Map([["2", ["1221+1220"]]]),
+    findShipment: async (reference) => {
+      started.push(reference);
+      await gate;
+      if (reference === "1221+1220") throw new Error("courier unavailable");
+      return null;
+    },
+  });
+  assert.deepEqual(started, ["1220", "1221+1220"]);
+  release!();
+  const [result] = await pending;
+  assert.equal(result.available, false);
+  assert.equal(result.verified, false);
+});
